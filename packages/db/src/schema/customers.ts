@@ -1,14 +1,17 @@
-import { pgTable, uuid, text, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, date, timestamp } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants';
+import { locations } from './locations';
 
 export const customers = pgTable('customers', {
   id: uuid('id').defaultRandom().primaryKey(),
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
   lineUserId: text('line_user_id').unique(),
-  displayName: text('display_name'),
+  name: text('name'),
   phone: text('phone'),
   email: text('email'),
-  preferredLocationId: uuid('preferred_location_id'),
+  birthday: date('birthday'),
+  notes: text('notes'),
+  preferredLocationId: uuid('preferred_location_id').references(() => locations.id),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

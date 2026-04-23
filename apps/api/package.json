@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@linq-beauty/db": "workspace:*",
     "@anthropic-ai/sdk": "^0.90.0",
     "@line/bot-sdk": "^11.0.0",
     "@nestjs/common": "^11.0.1",
