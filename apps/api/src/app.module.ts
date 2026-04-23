@@ -5,6 +5,8 @@ import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { LocationsModule } from './modules/locations/locations.module';
 import { ServicesModule } from './modules/services/services.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
+import { ReservationsModule } from './modules/reservations/reservations.module';
 
 @Module({
   imports: [
@@ -12,6 +14,8 @@ import { ServicesModule } from './modules/services/services.module';
     DatabaseModule,
     LocationsModule,
     ServicesModule,
+    CalendarModule,
+    ReservationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,4 +1,5 @@
 import { pgTable, uuid, text, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { tenants } from './tenants';
 import { locations } from './locations';
 import { services } from './services';
 import { customers } from './customers';
@@ -29,6 +30,7 @@ export const reservations = pgTable('reservations', {
 
 export const personalBlocks = pgTable('personal_blocks', {
   id: uuid('id').defaultRandom().primaryKey(),
+  tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
   locationId: uuid('location_id').references(() => locations.id),
   title: text('title').notNull(),
   startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
