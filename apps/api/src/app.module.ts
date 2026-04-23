@@ -10,7 +10,7 @@ import { ReservationsModule } from './modules/reservations/reservations.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../../.env', '.env'] }),
     DatabaseModule,
     LocationsModule,
     ServicesModule,

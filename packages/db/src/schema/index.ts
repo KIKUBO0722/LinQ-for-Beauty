@@ -7,3 +7,4 @@ export * from './line-accounts';
 export * from './rich-menu-configs';
 export * from './branding-assets';
 export * from './ai-extensions';
+export * from './relations';
