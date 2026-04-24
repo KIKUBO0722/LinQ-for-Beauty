@@ -7,6 +7,7 @@ import { LocationsModule } from './modules/locations/locations.module';
 import { ServicesModule } from './modules/services/services.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
+import { IcsModule } from './modules/ics/ics.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { ReservationsModule } from './modules/reservations/reservations.module';
     ServicesModule,
     CalendarModule,
     ReservationsModule,
+    IcsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

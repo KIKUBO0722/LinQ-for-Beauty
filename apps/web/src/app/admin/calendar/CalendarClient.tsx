@@ -99,23 +99,44 @@ export default function CalendarClient({ locations }: Props) {
     if (rangeRef) load(rangeRef.from, rangeRef.to, locationId);
   }
 
+  async function copyIcsUrl() {
+    try {
+      const { icsUrl } = await api.ics.issueToken(locationId);
+      await navigator.clipboard.writeText(icsUrl);
+      alert(
+        `ICS URL をコピーしました:\n${icsUrl}\n\nGoogle Calendar の「他のカレンダー → URL で追加」に貼り付けてください。`,
+      );
+    } catch (e) {
+      alert(`ICS URL の発行に失敗しました: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
-      {/* location tabs */}
-      <div className="flex border-b border-gray-200 bg-white px-4">
-        {locations.map((loc) => (
-          <button
-            key={loc.id}
-            onClick={() => setLocationId(loc.id)}
-            className={`px-5 py-3 text-sm font-medium transition-colors ${
-              locationId === loc.id
-                ? 'border-b-2 border-indigo-600 text-indigo-600'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {loc.name}
-          </button>
-        ))}
+      {/* location tabs + ICS action */}
+      <div className="flex items-center justify-between border-b border-gray-200 bg-white px-4">
+        <div className="flex">
+          {locations.map((loc) => (
+            <button
+              key={loc.id}
+              onClick={() => setLocationId(loc.id)}
+              className={`px-5 py-3 text-sm font-medium transition-colors ${
+                locationId === loc.id
+                  ? 'border-b-2 border-indigo-600 text-indigo-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {loc.name}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={copyIcsUrl}
+          disabled={!locationId}
+          className="rounded bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 transition-colors hover:bg-indigo-100 disabled:opacity-50"
+        >
+          📅 ICS URL をコピー
+        </button>
       </div>
 
       <div className="relative flex flex-1 overflow-hidden">

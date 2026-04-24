@@ -59,3 +59,5 @@ export type Reservation = typeof reservations.$inferSelect;
 export type NewReservation = typeof reservations.$inferInsert;
 export type PersonalBlock = typeof personalBlocks.$inferSelect;
 export type NewPersonalBlock = typeof personalBlocks.$inferInsert;
+export type IcsToken = typeof icsTokens.$inferSelect;
+export type NewIcsToken = typeof icsTokens.$inferInsert;

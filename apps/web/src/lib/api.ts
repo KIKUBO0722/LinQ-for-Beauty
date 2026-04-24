@@ -65,4 +65,17 @@ export const api = {
     remove: (id: string) =>
       req<PersonalBlock>(`/api/v1/personal-blocks/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
   },
+  ics: {
+    issueToken: (locationId?: string) =>
+      req<{
+        id: string;
+        token: string;
+        icsUrl: string;
+        locationId: string | null;
+        createdAt: string;
+      }>(`/api/v1/ics/tokens?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        body: JSON.stringify({ locationId }),
+      }),
+  },
 };
