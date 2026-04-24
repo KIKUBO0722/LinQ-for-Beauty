@@ -6,12 +6,16 @@ import { reservations, services } from '@linq-beauty/db';
 import { DB } from '../../database/database.module';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
+import { RemindersService } from '../reminders/reminders.service';
 
 type Db = NodePgDatabase<typeof schema>;
 
 @Injectable()
 export class ReservationsService {
-  constructor(@Inject(DB) private db: Db) {}
+  constructor(
+    @Inject(DB) private db: Db,
+    private remindersService: RemindersService,
+  ) {}
 
   findAll(tenantId: string, locationId?: string, from?: string, to?: string) {
     return this.db.query.reservations.findMany({
@@ -43,7 +47,7 @@ export class ReservationsService {
     const startsAt = new Date(dto.startsAt);
     const endsAt = new Date(startsAt.getTime() + (service.durationMin + service.bufferMin) * 60_000);
 
-    return this.db.transaction(async (tx) => {
+    const reservation = await this.db.transaction(async (tx) => {
       const conflict = await tx.query.reservations.findFirst({
         where: and(
           eq(reservations.locationId, dto.locationId),
@@ -54,7 +58,7 @@ export class ReservationsService {
       });
       if (conflict) throw new ConflictException('この時間帯はすでに予約済みです');
 
-      const [reservation] = await tx
+      const [created] = await tx
         .insert(reservations)
         .values({
           locationId: dto.locationId,
@@ -68,8 +72,11 @@ export class ReservationsService {
           status: 'confirmed',
         })
         .returning();
-      return reservation;
+      return created;
     });
+
+    await this.remindersService.scheduleReminders(reservation);
+    return reservation;
   }
 
   async update(id: string, dto: UpdateReservationDto) {
