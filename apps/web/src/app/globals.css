@@ -1,26 +1,99 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink-900: #1a1a1a;
+  --ink-700: #2e2e2e;
+  --ink-500: #5c5c5c;
+  --ink-300: #a8a8a8;
+  --ink-100: #e8e8e8;
+  --surface-0: #ffffff;
+  --surface-50: #fbfafc;
+  --surface-100: #f5f3f8;
+
+  --brand-pink: #f58fb8;
+  --brand-pink-light: #fbc8dc;
+  --brand-purple: #b89aec;
+  --brand-purple-light: #dccff5;
+
+  --gradient-primary: linear-gradient(135deg, #f58fb8 0%, #b89aec 100%);
+  --gradient-soft: linear-gradient(135deg, #fbc8dc 0%, #dccff5 100%);
+
+  --gradient-rainbow: linear-gradient(
+    90deg,
+    #ff6b9d 0%,
+    #ffa85c 14%,
+    #ffd93d 28%,
+    #6bcb77 42%,
+    #4d96ff 56%,
+    #9b72e5 70%,
+    #ff6b9d 84%,
+    #ffa85c 100%
+  );
+
+  --line-green: #06c755;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ink-900: var(--ink-900);
+  --color-ink-700: var(--ink-700);
+  --color-ink-500: var(--ink-500);
+  --color-ink-300: var(--ink-300);
+  --color-ink-100: var(--ink-100);
+  --color-surface-0: var(--surface-0);
+  --color-surface-50: var(--surface-50);
+  --color-surface-100: var(--surface-100);
+  --color-brand-pink: var(--brand-pink);
+  --color-brand-pink-light: var(--brand-pink-light);
+  --color-brand-purple: var(--brand-purple);
+  --color-brand-purple-light: var(--brand-purple-light);
+  --color-line-green: var(--line-green);
+
+  --font-display: var(--font-inter-tight);
+  --font-sans: var(--font-noto-sans-jp);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  font-family: var(--font-noto-sans-jp), "Hiragino Kaku Gothic ProN", Meiryo,
+    sans-serif;
+  background: var(--surface-0);
+  color: var(--ink-900);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--surface-0);
+  color: var(--ink-900);
+}
+
+.hero-display {
+  font-family: var(--font-inter-tight), sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 0.92;
+  background: var(--gradient-rainbow);
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: rainbow-shift 14s linear infinite;
+}
+
+@keyframes rainbow-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 300% 50%;
+  }
+}
+
+.numeric {
+  font-family: var(--font-inter-tight), sans-serif;
+  font-feature-settings: "tnum" 1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* wave-decoration: 動かさず固定背景として使う (鬼窪さん指示 2026-05-14) */
+.wave-decoration {
+  /* no animation */
 }

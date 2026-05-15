@@ -1,20 +1,25 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter_Tight, Noto_Sans_JP } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const interTight = Inter_Tight({
+  variable: "--font-inter-tight",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const notoSansJP = Noto_Sans_JP({
+  variable: "--font-noto-sans-jp",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "LinQ for Beauty",
-  description: "美容業界特化 AI-first 予約管理 SaaS",
+  title: "LinQ for Beauty — LINE で完結する、美容サロン向け予約 SaaS",
+  description:
+    "カルテも、受付も、ゼロに。LINE ひとつで予約・顧客管理・二拠点運営。月額 ¥4,000〜、解約自由。AI ファースト美容業界特化 SaaS。",
 };
 
 export default function RootLayout({
@@ -24,8 +29,8 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      lang="ja"
+      className={`${interTight.variable} ${notoSansJP.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
