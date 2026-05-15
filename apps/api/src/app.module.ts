@@ -10,6 +10,8 @@ import { CalendarModule } from './modules/calendar/calendar.module';
 import { ReservationsModule } from './modules/reservations/reservations.module';
 import { IcsModule } from './modules/ics/ics.module';
 import { RemindersModule } from './modules/reminders/reminders.module';
+import { TemplatesModule } from './modules/templates/templates.module';
+import { GreetingsModule } from './modules/greetings/greetings.module';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { RemindersModule } from './modules/reminders/reminders.module';
     ReservationsModule,
     IcsModule,
     RemindersModule,
+    TemplatesModule,
+    GreetingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
