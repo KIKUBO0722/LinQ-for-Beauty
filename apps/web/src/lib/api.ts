@@ -32,6 +32,7 @@ export type Reservation = {
   note: string | null;
   services: { name: string; durationMin: number } | null;
   customers: { name: string; phone: string | null } | null;
+  locations: { id: string; name: string } | null;
 };
 
 export type PersonalBlock = {
@@ -88,6 +89,16 @@ export const api = {
       req<Reservation[]>(
         `/api/v1/reservations?tenantId=${TENANT_ID}&locationId=${locationId}&from=${from}&to=${to}`,
       ),
+    listAll: (from?: string, to?: string) => {
+      const qs = [
+        `tenantId=${TENANT_ID}`,
+        from ? `from=${from}` : '',
+        to ? `to=${to}` : '',
+      ]
+        .filter(Boolean)
+        .join('&');
+      return req<Reservation[]>(`/api/v1/reservations?${qs}`);
+    },
     cancel: (id: string) => req<Reservation>(`/api/v1/reservations/${id}`, { method: 'DELETE' }),
   },
   personalBlocks: {

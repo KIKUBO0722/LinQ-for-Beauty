@@ -1,3 +1,6 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Calendar,
@@ -8,8 +11,6 @@ import {
   MailOpen,
   MousePointerClick,
   Footprints,
-  Megaphone,
-  Bell,
   ChevronRight,
   TrendingUp,
   Sparkles,
@@ -18,11 +19,10 @@ import {
   ScanSearch,
   FileText,
   Lightbulb,
-  ArrowUpRight,
-  Settings2,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { TodayReservationsTable, type Reservation } from './ReservationDrawer';
+import { api, type Reservation as ApiReservation, TENANT_ID } from '@/lib/api';
 
 type Tone = 'mint' | 'line' | 'lavender' | 'warn' | 'soft' | 'ai';
 
@@ -37,48 +37,53 @@ type Kpi = {
   cta: { label: string; href: string };
 };
 
-const kpis: Kpi[] = [
-  {
-    Icon: Calendar,
-    tone: 'mint',
-    label: '今日の予約',
-    value: '12',
-    unit: '名',
-    delta: '前日比 +2',
-    deltaTone: 'up',
-    cta: { label: '予約一覧', href: '/admin/calendar' },
-  },
-  {
-    Icon: MessageSquare,
-    tone: 'line',
-    label: '未読 LINE',
-    value: '5',
-    unit: '件',
-    delta: 'AI 応答済 12 件',
-    deltaTone: 'up',
-    cta: { label: '対応する', href: '/admin/inbox' },
-  },
-  {
-    Icon: UserPlus,
-    tone: 'lavender',
-    label: '再来店促進',
-    value: '24',
-    unit: '名',
-    delta: 'AI セグメント',
-    deltaTone: 'up',
-    cta: { label: '配信を作成', href: '/admin/broadcast' },
-  },
-  {
-    Icon: AlertTriangle,
-    tone: 'warn',
-    label: '失客リスク',
-    value: '21',
-    unit: '名',
-    delta: '前日比 +4',
-    deltaTone: 'warn',
-    cta: { label: 'リストを見る', href: '#' },
-  },
-];
+function buildKpis(args: {
+  todayCount: number | null;
+  unreadCount: number | null;
+}): Kpi[] {
+  return [
+    {
+      Icon: Calendar,
+      tone: 'mint',
+      label: '今日の予約',
+      value: args.todayCount === null ? '—' : String(args.todayCount),
+      unit: '件',
+      delta: args.todayCount === null ? '読み込み中' : 'リアルタイム',
+      deltaTone: 'up',
+      cta: { label: '予約一覧', href: '/admin/calendar' },
+    },
+    {
+      Icon: MessageSquare,
+      tone: 'line',
+      label: '未読 LINE',
+      value: args.unreadCount === null ? '—' : String(args.unreadCount),
+      unit: '件',
+      delta: args.unreadCount === null ? '読み込み中' : 'リアルタイム',
+      deltaTone: 'up',
+      cta: { label: '対応する', href: '/admin/inbox' },
+    },
+    {
+      Icon: UserPlus,
+      tone: 'lavender',
+      label: '再来店促進',
+      value: '—',
+      unit: '名',
+      delta: 'Phase 2',
+      deltaTone: 'up',
+      cta: { label: '配信を作成', href: '/admin/broadcast' },
+    },
+    {
+      Icon: AlertTriangle,
+      tone: 'warn',
+      label: '失客リスク',
+      value: '—',
+      unit: '名',
+      delta: 'Phase 2',
+      deltaTone: 'warn',
+      cta: { label: 'リストを見る', href: '#' },
+    },
+  ];
+}
 
 type AISuggestion = {
   Icon: LucideIcon;
@@ -112,7 +117,46 @@ const aiSuggestions: AISuggestion[] = [
   },
 ];
 
-const todayReservations: Reservation[] = [
+const TONES: Reservation['avatarTone'][] = ['mint', 'lavender', 'peach', 'sky', 'sand'];
+function pickTone(seed: string): Reservation['avatarTone'] {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return TONES[h % TONES.length];
+}
+function apiToDisplay(r: ApiReservation): Reservation {
+  const startsAt = new Date(r.startsAt);
+  const time = startsAt.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+  const name = r.customers?.name ?? r.guestName ?? '名前未登録';
+  const initial = name.charAt(0);
+  const status: Reservation['status'] =
+    r.status === 'confirmed' || r.status === 'completed' ? '確定' : '未確定';
+  const locationName = r.locations?.name ?? '東京';
+  const location: Reservation['location'] = locationName.includes('相生') ? '相生' : '東京';
+  return {
+    id: r.id,
+    time,
+    name,
+    initial,
+    avatarTone: pickTone(name),
+    menu: r.services?.name ?? '未選択',
+    status,
+    phone: r.customers?.phone ?? r.guestPhone ?? '',
+    birthday: '',
+    visits: 0,
+    lastVisit: '',
+    staff: 'スタッフ',
+    location,
+    memo: r.note ?? undefined,
+  };
+}
+function todayRange(): { from: string; to: string } {
+  const now = new Date();
+  const from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
+  const to = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0).toISOString();
+  return { from, to };
+}
+
+const PLACEHOLDER_RESERVATIONS: Reservation[] = [
   {
     id: '1',
     time: '10:00',
@@ -235,6 +279,39 @@ const aiDigest = [
 ];
 
 export default function DashboardPage() {
+  const [reservations, setReservations] = useState<Reservation[] | null>(null);
+  const [unread, setUnread] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!TENANT_ID) {
+      setError('NEXT_PUBLIC_TENANT_ID 未設定');
+      setReservations([]);
+      setUnread(0);
+      return;
+    }
+    const { from, to } = todayRange();
+    Promise.all([
+      api.reservations.listAll(from, to).catch((e) => {
+        console.warn('reservations.listAll failed', e);
+        return [] as ApiReservation[];
+      }),
+      api.messages.threads().catch((e) => {
+        console.warn('messages.threads failed', e);
+        return [] as { unreadCount: number }[];
+      }),
+    ]).then(([rs, ths]) => {
+      setReservations(rs.map(apiToDisplay));
+      setUnread(ths.reduce((s, t) => s + (t.unreadCount ?? 0), 0));
+    });
+  }, []);
+
+  const kpis = useMemo(
+    () => buildKpis({ todayCount: reservations?.length ?? null, unreadCount: unread }),
+    [reservations, unread],
+  );
+  const todayReservations = reservations ?? PLACEHOLDER_RESERVATIONS;
+
   return (
     <div className="px-6 py-5">
       <AiCopilotBanner />
@@ -247,7 +324,16 @@ export default function DashboardPage() {
 
       <section className="mt-5 grid grid-cols-[1.45fr_1fr] gap-4">
         <Card title="今日の予約" right={<ReservationFilters />}>
-          <TodayReservationsTable data={todayReservations} />
+          {reservations === null ? (
+            <p className="py-6 text-center text-xs text-ink-300">読み込み中…</p>
+          ) : reservations.length === 0 ? (
+            <p className="py-6 text-center text-xs text-ink-300">
+              今日の予約はまだありません
+            </p>
+          ) : (
+            <TodayReservationsTable data={todayReservations} />
+          )}
+          {error && <p className="mt-2 text-[10px] text-red-500">{error}</p>}
         </Card>
 
         <Card

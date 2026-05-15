@@ -103,7 +103,11 @@ const insights = [
 export default function AnalyticsPage() {
   return (
     <div className="px-6 py-5">
-      <div className="mb-4 flex items-center gap-2 text-sm">
+      <Phase2Banner
+        title="詳細分析は Phase 2 で本実装"
+        body="v0.1 では予約 / 未読 LINE の基本 KPI のみダッシュボードに表示。ブロック率 / 配信パフォーマンス / URL クリック / コンバージョン / トラフィック源は 5/30 以降の Phase 2 で順次有効化。"
+      />
+      <div className="mt-4 mb-4 flex items-center gap-2 text-sm">
         <PeriodPill active>今月</PeriodPill>
         <PeriodPill>先月</PeriodPill>
         <PeriodPill>過去 3 ヶ月</PeriodPill>
@@ -453,5 +457,41 @@ function LegendDot({ color, label }: { color: string; label: string }) {
       <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />
       {label}
     </span>
+  );
+}
+
+function Phase2Banner({ title, body }: { title: string; body: string }) {
+  return (
+    <div
+      className="relative overflow-hidden rounded-2xl border p-4 backdrop-blur-xl"
+      style={{
+        borderColor: 'rgba(255,255,255,0.6)',
+        background:
+          'linear-gradient(120deg, rgba(245,143,184,0.14) 0%, rgba(184,154,236,0.14) 60%, rgba(255,255,255,0.55) 100%)',
+        boxShadow:
+          '0 16px 40px -20px rgba(184,154,236,0.35), inset 0 1px 0 rgba(255,255,255,0.7)',
+      }}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full opacity-40 blur-3xl"
+        style={{ background: 'var(--gradient-primary)' }}
+      />
+      <div className="flex items-start gap-3">
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-white"
+          style={{ background: 'var(--gradient-primary)' }}
+        >
+          <Sparkles size={16} strokeWidth={1.75} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+            Phase 2 Preview
+          </p>
+          <p className="mt-0.5 text-sm font-semibold text-ink-900">{title}</p>
+          <p className="mt-1 text-[11px] text-ink-500">{body}</p>
+        </div>
+      </div>
+    </div>
   );
 }

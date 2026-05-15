@@ -12,6 +12,7 @@ import {
   Plus,
   TrendingUp,
   ChevronRight,
+  Sparkles,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -57,7 +58,11 @@ const summary = [
 export default function AutomationPage() {
   return (
     <div className="px-6 py-5">
-      <section className="grid grid-cols-[1.1fr_1.4fr] gap-4">
+      <Phase2Banner
+        title="自動化シナリオは Phase 2 で本実装"
+        body="v0.1 では設計と UI ガラのみ。来店後フォロー / 誕生日メッセージ / 失客フォローは 5/30 以降の Phase 2 でステップ配信モジュール本格運用と合わせてリリース予定です。"
+      />
+      <section className="mt-4 grid grid-cols-[1.1fr_1.4fr] gap-4">
         <Card title="自動化シナリオ" right={<NewBtn />}>
           <ul className="space-y-2">
             {scenarios.map((s) => (
@@ -328,6 +333,42 @@ function FlowArrow() {
         style={{ background: 'var(--gradient-soft)' }}
       />
       <ChevronRight size={14} className="text-ink-300" strokeWidth={1.75} />
+    </div>
+  );
+}
+
+function Phase2Banner({ title, body }: { title: string; body: string }) {
+  return (
+    <div
+      className="relative overflow-hidden rounded-2xl border p-4 backdrop-blur-xl"
+      style={{
+        borderColor: 'rgba(255,255,255,0.6)',
+        background:
+          'linear-gradient(120deg, rgba(245,143,184,0.14) 0%, rgba(184,154,236,0.14) 60%, rgba(255,255,255,0.55) 100%)',
+        boxShadow:
+          '0 16px 40px -20px rgba(184,154,236,0.35), inset 0 1px 0 rgba(255,255,255,0.7)',
+      }}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full opacity-40 blur-3xl"
+        style={{ background: 'var(--gradient-primary)' }}
+      />
+      <div className="flex items-start gap-3">
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-white"
+          style={{ background: 'var(--gradient-primary)' }}
+        >
+          <Sparkles size={16} strokeWidth={1.75} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-500">
+            Phase 2 Preview
+          </p>
+          <p className="mt-0.5 text-sm font-semibold text-ink-900">{title}</p>
+          <p className="mt-1 text-[11px] text-ink-500">{body}</p>
+        </div>
+      </div>
     </div>
   );
 }
