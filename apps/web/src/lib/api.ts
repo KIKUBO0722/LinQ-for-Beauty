@@ -136,4 +136,123 @@ export const api = {
         body: JSON.stringify({ customerId, text }),
       }),
   },
+  broadcasts: {
+    list: (locationId?: string) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<Broadcast[]>(`/api/v1/broadcasts?tenantId=${TENANT_ID}${loc}`);
+    },
+    get: (id: string) => req<Broadcast>(`/api/v1/broadcasts/${id}?tenantId=${TENANT_ID}`),
+    create: (
+      body: {
+        type: 'all' | 'segment' | 'scheduled';
+        title?: string;
+        text: string;
+        messageType?: 'text' | 'image' | 'video' | 'audio' | 'flex';
+        scheduledAt?: string;
+      },
+      locationId?: string,
+    ) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<Broadcast>(`/api/v1/broadcasts?tenantId=${TENANT_ID}${loc}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+    },
+    cancel: (id: string) =>
+      req<Broadcast>(`/api/v1/broadcasts/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
+  },
+  templates: {
+    list: (locationId?: string) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<MessageTemplate[]>(`/api/v1/templates?tenantId=${TENANT_ID}${loc}`);
+    },
+    create: (
+      body: { name: string; content: string; category?: string; messageType?: string },
+      locationId?: string,
+    ) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<MessageTemplate>(`/api/v1/templates?tenantId=${TENANT_ID}${loc}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+    },
+    update: (
+      id: string,
+      body: { name?: string; content?: string; category?: string; messageType?: string },
+    ) =>
+      req<MessageTemplate>(`/api/v1/templates/${id}?tenantId=${TENANT_ID}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string) =>
+      req<{ ok: boolean }>(`/api/v1/templates/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
+  },
+  greetings: {
+    list: (locationId?: string) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<Greeting[]>(`/api/v1/greetings?tenantId=${TENANT_ID}${loc}`);
+    },
+    create: (
+      body: { type: string; name: string; messages: Array<Record<string, unknown>>; isActive?: boolean },
+      locationId?: string,
+    ) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<Greeting>(`/api/v1/greetings?tenantId=${TENANT_ID}${loc}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+    },
+    update: (
+      id: string,
+      body: { name?: string; messages?: Array<Record<string, unknown>>; isActive?: boolean },
+    ) =>
+      req<Greeting>(`/api/v1/greetings/${id}?tenantId=${TENANT_ID}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string) =>
+      req<{ success: boolean }>(`/api/v1/greetings/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
+  },
+};
+
+export type Broadcast = {
+  id: string;
+  tenantId: string;
+  locationId: string | null;
+  type: 'all' | 'segment' | 'scheduled';
+  segmentId: string | null;
+  title: string | null;
+  contentPreview: string | null;
+  messageType: string | null;
+  recipientCount: number;
+  sentAt: string | null;
+  scheduledAt: string | null;
+  status: 'sent' | 'scheduled' | 'cancelled' | 'failed';
+  autoTagOnResponse: string | null;
+  createdAt: string;
+};
+
+export type MessageTemplate = {
+  id: string;
+  tenantId: string;
+  locationId: string | null;
+  name: string;
+  content: string;
+  category: string | null;
+  messageType: string;
+  messageData: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Greeting = {
+  id: string;
+  tenantId: string;
+  locationId: string | null;
+  type: string;
+  name: string;
+  messages: Array<Record<string, unknown>>;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 };
