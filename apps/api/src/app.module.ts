@@ -12,6 +12,9 @@ import { IcsModule } from './modules/ics/ics.module';
 import { RemindersModule } from './modules/reminders/reminders.module';
 import { TemplatesModule } from './modules/templates/templates.module';
 import { GreetingsModule } from './modules/greetings/greetings.module';
+import { MessagesModule } from './modules/messages/messages.module';
+import { BroadcastsModule } from './modules/broadcasts/broadcasts.module';
+import { RichMenusModule } from './modules/rich-menus/rich-menus.module';
 
 @Module({
   imports: [
@@ -34,6 +37,9 @@ import { GreetingsModule } from './modules/greetings/greetings.module';
     RemindersModule,
     TemplatesModule,
     GreetingsModule,
+    MessagesModule,
+    BroadcastsModule,
+    RichMenusModule,
   ],
   controllers: [AppController],
   providers: [AppService],
