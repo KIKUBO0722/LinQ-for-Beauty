@@ -43,6 +43,42 @@ export type PersonalBlock = {
   endsAt: string;
 };
 
+export type LineMessageContent =
+  | { type: 'text'; text: string }
+  | { type: 'image'; originalContentUrl: string; previewImageUrl?: string }
+  | { type: 'video'; originalContentUrl: string; previewImageUrl?: string }
+  | { type: 'audio'; originalContentUrl: string; duration?: number }
+  | { type: 'flex'; altText: string; contents: unknown }
+  | { type: string; [k: string]: unknown };
+
+export type MessageThread = {
+  customerId: string;
+  customerName: string | null;
+  lineUserId: string | null;
+  preferredLocationId: string | null;
+  lastReadAt: string | null;
+  unreadCount: number;
+  lastMessage: LineMessageContent | null;
+  lastMessageDirection: 'inbound' | 'outbound' | null;
+  lastMessageAt: string | null;
+};
+
+export type Message = {
+  id: string;
+  tenantId: string;
+  locationId: string | null;
+  lineAccountId: string;
+  customerId: string | null;
+  direction: 'inbound' | 'outbound';
+  messageType: string;
+  content: LineMessageContent;
+  sendType: string | null;
+  status: string;
+  scheduledAt: string | null;
+  sentAt: string | null;
+  createdAt: string;
+};
+
 export const api = {
   locations: {
     list: () => req<Location[]>(`/api/v1/locations?tenantId=${TENANT_ID}`),
@@ -76,6 +112,28 @@ export const api = {
       }>(`/api/v1/ics/tokens?tenantId=${TENANT_ID}`, {
         method: 'POST',
         body: JSON.stringify({ locationId }),
+      }),
+  },
+  messages: {
+    threads: (locationId?: string) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<MessageThread[]>(`/api/v1/messages/threads?tenantId=${TENANT_ID}${loc}`);
+    },
+    conversation: (customerId: string, locationId?: string) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<Message[]>(
+        `/api/v1/messages/conversation/${customerId}?tenantId=${TENANT_ID}${loc}`,
+      );
+    },
+    markAsRead: (customerId: string) =>
+      req<{ ok: boolean }>(
+        `/api/v1/messages/read/${customerId}?tenantId=${TENANT_ID}`,
+        { method: 'POST' },
+      ),
+    send: (customerId: string, text: string) =>
+      req<Message>(`/api/v1/messages/send?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        body: JSON.stringify({ customerId, text }),
       }),
   },
 };

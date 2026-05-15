@@ -36,6 +36,80 @@ export class MessagesService {
     return account;
   }
 
+  async getThreads(tenantId: string, locationId?: string) {
+    const locFilter = locationId ? sql`AND m.location_id = ${locationId}` : sql``;
+    const result = await this.db.execute(sql`
+      WITH thread_agg AS (
+        SELECT
+          m.customer_id,
+          MAX(m.created_at) AS last_message_at,
+          COUNT(*) FILTER (
+            WHERE m.direction = 'inbound'
+              AND (c.last_read_at IS NULL OR m.created_at > c.last_read_at)
+          )::int AS unread_count
+        FROM messages m
+        INNER JOIN customers c ON c.id = m.customer_id
+        WHERE m.tenant_id = ${tenantId}
+          AND m.customer_id IS NOT NULL
+          ${locFilter}
+        GROUP BY m.customer_id
+      )
+      SELECT
+        t.customer_id,
+        t.last_message_at,
+        t.unread_count,
+        c.name AS customer_name,
+        c.line_user_id,
+        c.preferred_location_id,
+        c.last_read_at,
+        (
+          SELECT m2.content FROM messages m2
+          WHERE m2.customer_id = t.customer_id
+            AND m2.tenant_id = ${tenantId}
+          ORDER BY m2.created_at DESC LIMIT 1
+        ) AS last_message_content,
+        (
+          SELECT m2.direction FROM messages m2
+          WHERE m2.customer_id = t.customer_id
+            AND m2.tenant_id = ${tenantId}
+          ORDER BY m2.created_at DESC LIMIT 1
+        ) AS last_message_direction
+      FROM thread_agg t
+      INNER JOIN customers c ON c.id = t.customer_id
+      ORDER BY t.last_message_at DESC
+      LIMIT 200
+    `);
+    const rows =
+      (result as { rows?: Array<Record<string, unknown>> }).rows ??
+      (result as unknown as Array<Record<string, unknown>>);
+    return rows.map((row) => {
+      const rawContent = row.last_message_content;
+      let lastMessage: unknown = null;
+      try {
+        lastMessage = typeof rawContent === 'string' ? JSON.parse(rawContent) : rawContent;
+      } catch {
+        lastMessage = rawContent;
+      }
+      const lastAt = row.last_message_at;
+      return {
+        customerId: row.customer_id as string,
+        customerName: (row.customer_name as string | null) ?? null,
+        lineUserId: (row.line_user_id as string | null) ?? null,
+        preferredLocationId: (row.preferred_location_id as string | null) ?? null,
+        lastReadAt: (row.last_read_at as string | Date | null) ?? null,
+        unreadCount: Number(row.unread_count ?? 0),
+        lastMessage,
+        lastMessageDirection: (row.last_message_direction as 'inbound' | 'outbound' | null) ?? null,
+        lastMessageAt:
+          lastAt instanceof Date
+            ? lastAt.toISOString()
+            : typeof lastAt === 'string'
+              ? lastAt
+              : null,
+      };
+    });
+  }
+
   async getConversation(tenantId: string, customerId: string, locationId?: string) {
     return this.db
       .select()

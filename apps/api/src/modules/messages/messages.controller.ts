@@ -14,6 +14,14 @@ export class MessagesController {
     return this.messagesService.getUnreadSummary(tenantId, locationId);
   }
 
+  @Get('threads')
+  threads(
+    @Query('tenantId') tenantId: string,
+    @Query('locationId') locationId?: string,
+  ) {
+    return this.messagesService.getThreads(tenantId, locationId);
+  }
+
   @Get('conversation/:customerId')
   conversation(
     @Query('tenantId') tenantId: string,
