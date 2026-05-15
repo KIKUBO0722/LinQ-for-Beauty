@@ -40,3 +40,6 @@ coverage/
 # Playwright
 playwright-report/
 test-results/
+
+# Local design scratch (ChatGPT/Gemini drafts, regenerable)
+imag/
