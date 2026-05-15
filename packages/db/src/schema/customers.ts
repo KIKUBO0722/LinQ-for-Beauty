@@ -12,6 +12,7 @@ export const customers = pgTable('customers', {
   birthday: date('birthday'),
   notes: text('notes'),
   preferredLocationId: uuid('preferred_location_id').references(() => locations.id),
+  lastReadAt: timestamp('last_read_at', { withTimezone: true }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

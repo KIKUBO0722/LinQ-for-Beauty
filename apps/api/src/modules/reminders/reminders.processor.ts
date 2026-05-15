@@ -62,7 +62,7 @@ export class RemindersProcessor extends WorkerHost {
       `${locationName}へのご来店をお待ちしております。`;
 
     if (lineUserId) {
-      await this.lineService.pushMessage(lineUserId, text);
+      await this.lineService.pushTextEnv(lineUserId, text);
       this.logger.log(`Reminder [${type}] sent to ${lineUserId} for reservation ${reservationId}`);
     } else {
       this.logger.warn(`No LINE userId for reservation ${reservationId} — reminder not sent`);
