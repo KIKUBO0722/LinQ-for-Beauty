@@ -227,7 +227,17 @@ export class MessagesService {
       channelAccessToken: account.channelAccessToken,
     };
 
-    await this.lineService.pushMessage(credentials, customer.lineUserId, [lineMessage]);
+    // LINE 送信は失敗しても DB insert は続行する (broadcasts と挙動を揃える)
+    // — dummy account / 未接続 / レート制限などは status='failed' で記録、画面には追加される
+    let sendStatus: 'sent' | 'failed' = 'sent';
+    try {
+      await this.lineService.pushMessage(credentials, customer.lineUserId, [lineMessage]);
+    } catch (e) {
+      sendStatus = 'failed';
+      this.logger.warn(
+        `LINE push failed for customer=${customerId}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
 
     const [msg] = await this.db
       .insert(messages)
@@ -240,7 +250,7 @@ export class MessagesService {
         messageType: payload.type,
         content: lineMessage as unknown as Record<string, unknown>,
         sendType: 'push',
-        status: 'sent',
+        status: sendStatus,
         sentAt: new Date(),
       })
       .returning();

@@ -43,6 +43,14 @@ export function CustomerDetailDrawer({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (open) document.body.dataset.drawer = 'open';
+    else delete document.body.dataset.drawer;
+    return () => {
+      delete document.body.dataset.drawer;
+    };
+  }, [open]);
+
   return (
     <>
       <div
@@ -58,7 +66,7 @@ export function CustomerDetailDrawer({
         aria-modal="true"
         aria-label="顧客詳細"
         className={
-          'fixed top-0 right-0 z-50 flex h-full w-[420px] flex-col overflow-hidden border-l border-ink-100 bg-surface-0 shadow-2xl transition-transform duration-300 ease-out ' +
+          'fixed top-0 right-0 z-50 flex h-full w-[640px] flex-col overflow-hidden border-l border-ink-100 bg-surface-0 shadow-2xl transition-transform duration-300 ease-out ' +
           (open ? 'translate-x-0' : 'translate-x-full')
         }
       >

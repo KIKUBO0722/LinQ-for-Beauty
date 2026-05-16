@@ -8,7 +8,6 @@ import {
   Calendar,
   Plus,
   Trash2,
-  Pencil,
   Check,
   Megaphone,
   FileText,
@@ -230,6 +229,8 @@ function BroadcastsListTab({ onError }: { onError: (e: string) => void }) {
             <th className="py-2 font-medium">送信日時</th>
             <th className="py-2 font-medium">予約日時</th>
             <th className="py-2 font-medium">到達</th>
+            <th className="py-2 font-medium">開封</th>
+            <th className="py-2 font-medium">クリック</th>
           </tr>
         </thead>
         <tbody>
@@ -246,6 +247,8 @@ function BroadcastsListTab({ onError }: { onError: (e: string) => void }) {
               <td className="py-2.5 text-ink-500">{formatDateTime(b.sentAt)}</td>
               <td className="py-2.5 text-ink-500">{formatDateTime(b.scheduledAt)}</td>
               <td className="py-2.5 numeric text-ink-700">{b.recipientCount}</td>
+              <td className="py-2.5 numeric text-ink-700">{formatStat(b.openCount)}</td>
+              <td className="py-2.5 numeric text-ink-700">{formatStat(b.clickCount)}</td>
             </tr>
           ))}
         </tbody>
@@ -261,7 +264,8 @@ function BroadcastsListTab({ onError }: { onError: (e: string) => void }) {
 
 function TemplatesTab({ onError }: { onError: (e: string) => void }) {
   const [items, setItems] = useState<MessageTemplate[] | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
+  // selectedId: 既存テンプレの id / 'new' (新規モード) / null (未選択)
+  const [selectedId, setSelectedId] = useState<string | 'new' | null>(null);
   const [draft, setDraft] = useState<{ name: string; content: string; category: string }>({
     name: '',
     content: '',
@@ -281,6 +285,17 @@ function TemplatesTab({ onError }: { onError: (e: string) => void }) {
     refresh();
   }, [refresh]);
 
+  // 既存テンプレを選択したら draft にロード
+  const onSelectExisting = (t: MessageTemplate) => {
+    setSelectedId(t.id);
+    setDraft({ name: t.name, content: t.content, category: t.category ?? '' });
+  };
+
+  const onStartNew = () => {
+    setSelectedId('new');
+    setDraft({ name: '', content: '', category: '' });
+  };
+
   const onCreate = async () => {
     if (!draft.name.trim() || !draft.content.trim()) return;
     try {
@@ -290,201 +305,198 @@ function TemplatesTab({ onError }: { onError: (e: string) => void }) {
         category: draft.category || undefined,
       });
       setDraft({ name: '', content: '', category: '' });
+      setSelectedId(null);
       refresh();
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e));
     }
   };
 
-  const onUpdate = async (id: string, patch: { name?: string; content?: string }) => {
+  const onSaveEdit = async () => {
+    if (!selectedId || selectedId === 'new') return;
+    if (!draft.name.trim() || !draft.content.trim()) return;
     try {
-      await api.templates.update(id, patch);
-      setEditing(null);
+      await api.templates.update(selectedId, {
+        name: draft.name,
+        content: draft.content,
+      });
       refresh();
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e));
     }
   };
 
-  const onRemove = async (id: string) => {
+  const onRemove = async () => {
+    if (!selectedId || selectedId === 'new') return;
     try {
-      await api.templates.remove(id);
+      await api.templates.remove(selectedId);
+      setSelectedId(null);
+      setDraft({ name: '', content: '', category: '' });
       refresh();
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e));
     }
   };
+
+  const isEditing = selectedId !== null && selectedId !== 'new';
+  const isNew = selectedId === 'new';
 
   return (
-    <div className="grid grid-cols-[1fr_320px] gap-4">
+    <div className="grid grid-cols-[280px_1fr_280px] gap-4">
+      {/* 左: テンプレ一覧 + 新規ボタン */}
       <Card
         title="テンプレ一覧"
-        right={<span className="text-[10px] text-ink-500">{items?.length ?? 0} 件</span>}
+        right={
+          <button
+            type="button"
+            onClick={onStartNew}
+            className="flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white"
+            style={{ background: 'var(--line-green)' }}
+          >
+            <Plus size={11} strokeWidth={2.5} />
+            新規
+          </button>
+        }
       >
         {items === null ? (
           <Spinner />
         ) : items.length === 0 ? (
           <Empty Icon={FileText} label="まだテンプレがありません" />
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {items.map((t) => (
-              <TemplateRow
-                key={t.id}
-                template={t}
-                editing={editing === t.id}
-                onEdit={() => setEditing(t.id)}
-                onCancel={() => setEditing(null)}
-                onSave={(patch) => onUpdate(t.id, patch)}
-                onRemove={() => onRemove(t.id)}
-              />
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelectExisting(t)}
+                  className="w-full rounded-xl border px-3 py-2.5 text-left transition-colors hover:bg-surface-50"
+                  style={{
+                    borderColor: selectedId === t.id ? 'var(--line-green)' : 'var(--ink-100)',
+                    background: selectedId === t.id ? '#e8f6ee' : undefined,
+                  }}
+                >
+                  <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
+                    <span className="truncate">{t.name}</span>
+                    {t.category && (
+                      <span className="shrink-0 rounded-full bg-surface-100 px-1.5 py-0.5 text-[9px] text-ink-500">
+                        {t.category}
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-0.5 line-clamp-2 whitespace-pre-line text-[11px] text-ink-500">
+                    {t.content}
+                  </p>
+                </button>
+              </li>
             ))}
           </ul>
         )}
       </Card>
 
-      <Card title="新規テンプレ追加">
-        <Field label="名前">
-          <input
-            value={draft.name}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            placeholder="例: 来店前確認"
-            className="w-full rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none"
-          />
-        </Field>
-        <Field label="カテゴリ (任意)">
-          <input
-            value={draft.category}
-            onChange={(e) => setDraft({ ...draft, category: e.target.value })}
-            placeholder="例: 予約確認"
-            className="w-full rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none"
-          />
-        </Field>
-        <Field label="本文">
-          <textarea
-            rows={5}
-            value={draft.content}
-            onChange={(e) => setDraft({ ...draft, content: e.target.value })}
-            className="w-full resize-none rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none"
-          />
-        </Field>
-        <button
-          type="button"
-          onClick={onCreate}
-          disabled={!draft.name.trim() || !draft.content.trim()}
-          className="mt-2 flex w-full items-center justify-center gap-1 rounded-full px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-          style={{ background: 'var(--line-green)' }}
-        >
-          <Plus size={14} strokeWidth={2} />
-          追加
-        </button>
+      {/* 中: 編集フォーム */}
+      <Card
+        title={isNew ? '新規テンプレ作成' : isEditing ? 'テンプレ編集' : 'テンプレを選択'}
+        right={
+          isEditing ? (
+            <button
+              type="button"
+              onClick={onRemove}
+              aria-label="削除"
+              className="rounded-full p-1.5 text-red-400 hover:bg-red-50 hover:text-red-700"
+            >
+              <Trash2 size={13} strokeWidth={1.75} />
+            </button>
+          ) : null
+        }
+      >
+        {selectedId === null ? (
+          <div className="flex h-[340px] flex-col items-center justify-center text-center text-ink-300">
+            <FileText size={28} strokeWidth={1.5} />
+            <p className="mt-2 text-xs">
+              左の一覧からテンプレを選ぶか、
+              <br />
+              「新規」ボタンで作成してください
+            </p>
+          </div>
+        ) : (
+          <>
+            <Field label="名前">
+              <input
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                placeholder="例: 来店前確認"
+                className="w-full rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none"
+              />
+            </Field>
+            <Field label="カテゴリ (任意)">
+              <input
+                value={draft.category}
+                onChange={(e) => setDraft({ ...draft, category: e.target.value })}
+                placeholder="例: 予約確認"
+                disabled={isEditing}
+                className="w-full rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none disabled:bg-surface-100 disabled:text-ink-500"
+              />
+            </Field>
+            <Field label="本文">
+              <textarea
+                rows={6}
+                value={draft.content}
+                onChange={(e) => setDraft({ ...draft, content: e.target.value })}
+                className="w-full resize-none rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none"
+              />
+            </Field>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedId(null);
+                  setDraft({ name: '', content: '', category: '' });
+                }}
+                className="flex-1 rounded-full border border-ink-100 px-3 py-2 text-sm text-ink-700 hover:bg-surface-50"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={isNew ? onCreate : onSaveEdit}
+                disabled={!draft.name.trim() || !draft.content.trim()}
+                className="flex flex-1 items-center justify-center gap-1 rounded-full px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: 'var(--line-green)' }}
+              >
+                {isNew ? (
+                  <>
+                    <Plus size={14} strokeWidth={2} />
+                    追加
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} strokeWidth={2.5} />
+                    保存
+                  </>
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </Card>
+
+      {/* 右: スマホモック (固定、新規配信タブと統一) */}
+      <Card title="プレビュー">
+        <PhoneMockup text={draft.content || '本文を入力するとここに表示されます'} />
       </Card>
     </div>
   );
 }
 
-function TemplateRow({
-  template,
-  editing,
-  onEdit,
-  onCancel,
-  onSave,
-  onRemove,
-}: {
-  template: MessageTemplate;
-  editing: boolean;
-  onEdit: () => void;
-  onCancel: () => void;
-  onSave: (patch: { name?: string; content?: string }) => void;
-  onRemove: () => void;
-}) {
-  const [name, setName] = useState(template.name);
-  const [content, setContent] = useState(template.content);
-  useEffect(() => {
-    if (editing) {
-      setName(template.name);
-      setContent(template.content);
-    }
-  }, [editing, template]);
-
-  if (editing) {
-    return (
-      <li className="rounded-xl border border-ink-100 bg-surface-50 p-3">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-lg border border-ink-100 bg-surface-0 px-2.5 py-1.5 text-sm outline-none"
-        />
-        <textarea
-          rows={3}
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          className="mt-2 w-full resize-none rounded-lg border border-ink-100 bg-surface-0 px-2.5 py-1.5 text-xs outline-none"
-        />
-        <div className="mt-2 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-full border border-ink-100 px-3 py-1.5 text-xs text-ink-700 hover:bg-surface-100"
-          >
-            キャンセル
-          </button>
-          <button
-            type="button"
-            onClick={() => onSave({ name, content })}
-            className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-white"
-            style={{ background: 'var(--line-green)' }}
-          >
-            <Check size={12} strokeWidth={2.5} />
-            保存
-          </button>
-        </div>
-      </li>
-    );
-  }
-
-  return (
-    <li className="flex items-start gap-2 rounded-xl border border-ink-100 px-3 py-2.5">
-      <div className="min-w-0 flex-1">
-        <p className="flex items-center gap-2 text-sm font-semibold text-ink-900">
-          {template.name}
-          {template.category && (
-            <span className="rounded-full bg-surface-100 px-2 py-0.5 text-[10px] text-ink-500">
-              {template.category}
-            </span>
-          )}
-        </p>
-        <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs text-ink-500">
-          {template.content}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        <button
-          type="button"
-          onClick={onEdit}
-          aria-label="編集"
-          className="rounded-full p-1.5 text-ink-500 hover:bg-surface-100 hover:text-ink-900"
-        >
-          <Pencil size={13} strokeWidth={1.75} />
-        </button>
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label="削除"
-          className="rounded-full p-1.5 text-red-400 hover:bg-red-50 hover:text-red-700"
-        >
-          <Trash2 size={13} strokeWidth={1.75} />
-        </button>
-      </div>
-    </li>
-  );
-}
-
 function GreetingsTab({ onError }: { onError: (e: string) => void }) {
   const [items, setItems] = useState<Greeting[] | null>(null);
-  const [draft, setDraft] = useState<{ type: string; name: string; text: string }>({
+  // selectedId: 既存あいさつの id / 'new' (新規モード) / null (未選択)
+  const [selectedId, setSelectedId] = useState<string | 'new' | null>(null);
+  const [draft, setDraft] = useState<{ type: string; name: string; text: string; isActive: boolean }>({
     type: 'welcome',
     name: '',
     text: '',
+    isActive: true,
   });
 
   const refresh = useCallback(async () => {
@@ -500,6 +512,21 @@ function GreetingsTab({ onError }: { onError: (e: string) => void }) {
     refresh();
   }, [refresh]);
 
+  const onSelectExisting = (g: Greeting) => {
+    setSelectedId(g.id);
+    setDraft({
+      type: g.type,
+      name: g.name,
+      text: firstTextFromMessages(g.messages),
+      isActive: g.isActive,
+    });
+  };
+
+  const onStartNew = () => {
+    setSelectedId('new');
+    setDraft({ type: 'welcome', name: '', text: '', isActive: true });
+  };
+
   const onCreate = async () => {
     if (!draft.name.trim() || !draft.text.trim()) return;
     try {
@@ -507,80 +534,101 @@ function GreetingsTab({ onError }: { onError: (e: string) => void }) {
         type: draft.type,
         name: draft.name,
         messages: [{ type: 'text', text: draft.text }],
-        isActive: true,
+        isActive: draft.isActive,
       });
-      setDraft({ type: draft.type, name: '', text: '' });
+      setSelectedId(null);
+      setDraft({ type: 'welcome', name: '', text: '', isActive: true });
       refresh();
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e));
     }
   };
 
-  const toggleActive = async (g: Greeting) => {
+  const onSaveEdit = async () => {
+    if (!selectedId || selectedId === 'new') return;
+    if (!draft.name.trim() || !draft.text.trim()) return;
     try {
-      await api.greetings.update(g.id, { isActive: !g.isActive });
+      await api.greetings.update(selectedId, {
+        name: draft.name,
+        messages: [{ type: 'text', text: draft.text }],
+        isActive: draft.isActive,
+      });
       refresh();
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e));
     }
   };
 
-  const onRemove = async (id: string) => {
+  const onRemove = async () => {
+    if (!selectedId || selectedId === 'new') return;
     try {
-      await api.greetings.remove(id);
+      await api.greetings.remove(selectedId);
+      setSelectedId(null);
+      setDraft({ type: 'welcome', name: '', text: '', isActive: true });
       refresh();
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e));
     }
   };
+
+  const isEditing = selectedId !== null && selectedId !== 'new';
+  const isNew = selectedId === 'new';
 
   return (
-    <div className="grid grid-cols-[1fr_320px] gap-4">
+    <div className="grid grid-cols-[280px_1fr_280px] gap-4">
+      {/* 左: あいさつ一覧 + 新規ボタン */}
       <Card
         title="あいさつ一覧"
-        right={<span className="text-[10px] text-ink-500">{items?.length ?? 0} 件</span>}
+        right={
+          <button
+            type="button"
+            onClick={onStartNew}
+            className="flex items-center gap-0.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white"
+            style={{ background: 'var(--line-green)' }}
+          >
+            <Plus size={11} strokeWidth={2.5} />
+            新規
+          </button>
+        }
       >
         {items === null ? (
           <Spinner />
         ) : items.length === 0 ? (
           <Empty Icon={Hand} label="まだあいさつがありません" />
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-1.5">
             {items.map((g) => (
-              <li
-                key={g.id}
-                className="flex items-start gap-2 rounded-xl border border-ink-100 px-3 py-2.5"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-2 text-sm font-semibold text-ink-900">
-                    {g.name}
-                    <span className="rounded-full bg-surface-100 px-2 py-0.5 text-[10px] text-ink-500">
+              <li key={g.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelectExisting(g)}
+                  className="w-full rounded-xl border px-3 py-2.5 text-left transition-colors hover:bg-surface-50"
+                  style={{
+                    borderColor: selectedId === g.id ? 'var(--line-green)' : 'var(--ink-100)',
+                    background: selectedId === g.id ? '#e8f6ee' : undefined,
+                  }}
+                >
+                  <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
+                    <span className="truncate">{g.name}</span>
+                    <span
+                      className={
+                        g.isActive
+                          ? 'shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold text-white'
+                          : 'shrink-0 rounded-full bg-surface-100 px-1.5 py-0.5 text-[9px] text-ink-500'
+                      }
+                      style={g.isActive ? { background: 'var(--line-green)' } : undefined}
+                    >
+                      {g.isActive ? 'ON' : 'OFF'}
+                    </span>
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-1">
+                    <span className="rounded-full bg-surface-100 px-1.5 py-0.5 text-[9px] text-ink-500">
                       {g.type}
                     </span>
                   </p>
-                  <p className="mt-1 line-clamp-2 whitespace-pre-line text-xs text-ink-500">
+                  <p className="mt-1 line-clamp-2 whitespace-pre-line text-[11px] text-ink-500">
                     {firstTextFromMessages(g.messages)}
                   </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => toggleActive(g)}
-                  className={
-                    g.isActive
-                      ? 'rounded-full px-2.5 py-0.5 text-[10px] font-semibold text-white'
-                      : 'rounded-full bg-surface-100 px-2.5 py-0.5 text-[10px] text-ink-500'
-                  }
-                  style={g.isActive ? { background: 'var(--line-green)' } : undefined}
-                >
-                  {g.isActive ? 'ON' : 'OFF'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onRemove(g.id)}
-                  aria-label="削除"
-                  className="rounded-full p-1.5 text-red-400 hover:bg-red-50 hover:text-red-700"
-                >
-                  <Trash2 size={13} strokeWidth={1.75} />
                 </button>
               </li>
             ))}
@@ -588,44 +636,122 @@ function GreetingsTab({ onError }: { onError: (e: string) => void }) {
         )}
       </Card>
 
-      <Card title="新規あいさつ追加">
-        <Field label="タイプ">
-          <select
-            value={draft.type}
-            onChange={(e) => setDraft({ ...draft, type: e.target.value })}
-            className="w-full rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none"
-          >
-            <option value="welcome">welcome (友だち追加時)</option>
-            <option value="auto-reply">auto-reply (営業時間外)</option>
-            <option value="thanks">thanks (来店お礼)</option>
-          </select>
-        </Field>
-        <Field label="名前">
-          <input
-            value={draft.name}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            placeholder="例: 友だち追加直後"
-            className="w-full rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none"
-          />
-        </Field>
-        <Field label="本文">
-          <textarea
-            rows={4}
-            value={draft.text}
-            onChange={(e) => setDraft({ ...draft, text: e.target.value })}
-            className="w-full resize-none rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none"
-          />
-        </Field>
-        <button
-          type="button"
-          onClick={onCreate}
-          disabled={!draft.name.trim() || !draft.text.trim()}
-          className="mt-2 flex w-full items-center justify-center gap-1 rounded-full px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-          style={{ background: 'var(--line-green)' }}
-        >
-          <Plus size={14} strokeWidth={2} />
-          追加
-        </button>
+      {/* 中: 編集フォーム */}
+      <Card
+        title={isNew ? '新規あいさつ作成' : isEditing ? 'あいさつ編集' : 'あいさつを選択'}
+        right={
+          isEditing ? (
+            <button
+              type="button"
+              onClick={onRemove}
+              aria-label="削除"
+              className="rounded-full p-1.5 text-red-400 hover:bg-red-50 hover:text-red-700"
+            >
+              <Trash2 size={13} strokeWidth={1.75} />
+            </button>
+          ) : null
+        }
+      >
+        {selectedId === null ? (
+          <div className="flex h-[340px] flex-col items-center justify-center text-center text-ink-300">
+            <Hand size={28} strokeWidth={1.5} />
+            <p className="mt-2 text-xs">
+              左の一覧からあいさつを選ぶか、
+              <br />
+              「新規」ボタンで作成してください
+            </p>
+          </div>
+        ) : (
+          <>
+            <Field label="タイプ">
+              <select
+                value={draft.type}
+                onChange={(e) => setDraft({ ...draft, type: e.target.value })}
+                disabled={isEditing}
+                className="w-full rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none disabled:bg-surface-100 disabled:text-ink-500"
+              >
+                <option value="welcome">welcome (友だち追加時)</option>
+                <option value="auto-reply">auto-reply (営業時間外)</option>
+                <option value="thanks">thanks (来店お礼)</option>
+              </select>
+            </Field>
+            <Field label="名前">
+              <input
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                placeholder="例: 友だち追加直後"
+                className="w-full rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none"
+              />
+            </Field>
+            <Field label="本文">
+              <textarea
+                rows={6}
+                value={draft.text}
+                onChange={(e) => setDraft({ ...draft, text: e.target.value })}
+                className="w-full resize-none rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none"
+              />
+            </Field>
+            <Field label="状態">
+              <div className="flex gap-1 rounded-lg bg-surface-100 p-1">
+                {[true, false].map((v) => (
+                  <button
+                    key={String(v)}
+                    type="button"
+                    onClick={() => setDraft({ ...draft, isActive: v })}
+                    className={
+                      draft.isActive === v
+                        ? 'flex-1 rounded-md py-1 text-xs font-semibold text-white'
+                        : 'flex-1 rounded-md py-1 text-xs text-ink-500 hover:text-ink-900'
+                    }
+                    style={
+                      draft.isActive === v
+                        ? { background: v ? 'var(--line-green)' : '#a8a8a8' }
+                        : undefined
+                    }
+                  >
+                    {v ? 'ON (有効)' : 'OFF (停止中)'}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <div className="mt-2 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedId(null);
+                  setDraft({ type: 'welcome', name: '', text: '', isActive: true });
+                }}
+                className="flex-1 rounded-full border border-ink-100 px-3 py-2 text-sm text-ink-700 hover:bg-surface-50"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={isNew ? onCreate : onSaveEdit}
+                disabled={!draft.name.trim() || !draft.text.trim()}
+                className="flex flex-1 items-center justify-center gap-1 rounded-full px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                style={{ background: 'var(--line-green)' }}
+              >
+                {isNew ? (
+                  <>
+                    <Plus size={14} strokeWidth={2} />
+                    追加
+                  </>
+                ) : (
+                  <>
+                    <Check size={14} strokeWidth={2.5} />
+                    保存
+                  </>
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </Card>
+
+      {/* 右: スマホモック (テンプレと統一) */}
+      <Card title="プレビュー">
+        <PhoneMockup text={draft.text || '本文を入力するとここに表示されます'} />
       </Card>
     </div>
   );
@@ -756,4 +882,11 @@ function formatDateTime(s: string | null): string {
   } catch {
     return s;
   }
+}
+
+// 開封 / クリックは v0.1 では集計未実装 — null or 0 は "—" (ゼロ表示は配信失敗と誤読されるため)
+// Phase 2 で本実装後は本物の 0 が表示できなくなる点は許容 (実運用で純 0 はほぼ無い)
+function formatStat(n: number | null | undefined): string {
+  if (n == null || n === 0) return '—';
+  return String(n);
 }

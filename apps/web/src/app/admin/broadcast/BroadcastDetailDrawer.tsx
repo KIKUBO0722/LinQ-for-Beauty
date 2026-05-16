@@ -9,6 +9,7 @@ import {
   CircleSlash,
   Tag,
   Loader2,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import { api, type Broadcast } from '@/lib/api';
@@ -33,6 +34,14 @@ export function BroadcastDetailDrawer({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (open) document.body.dataset.drawer = 'open';
+    else delete document.body.dataset.drawer;
+    return () => {
+      delete document.body.dataset.drawer;
+    };
+  }, [open]);
+
   return (
     <>
       <div
@@ -48,7 +57,7 @@ export function BroadcastDetailDrawer({
         aria-modal="true"
         aria-label="配信詳細"
         className={
-          'fixed top-0 right-0 z-50 flex h-full w-[460px] flex-col overflow-hidden border-l border-ink-100 bg-surface-0 shadow-2xl transition-transform duration-300 ease-out ' +
+          'fixed top-0 right-0 z-50 flex h-full w-[640px] flex-col overflow-hidden border-l border-ink-100 bg-surface-0 shadow-2xl transition-transform duration-300 ease-out ' +
           (open ? 'translate-x-0' : 'translate-x-full')
         }
       >
@@ -127,9 +136,15 @@ function Content({
           </Row>
         </Section>
 
-        <Section icon={Users} title="配信先">
+        <Section icon={Users} title="配信実績">
           <Row label="到達">
             <span className="numeric text-ink-900">{broadcast.recipientCount}</span>
+          </Row>
+          <Row label="開封">
+            <span className="numeric text-ink-900">{formatStat(broadcast.openCount)}</span>
+          </Row>
+          <Row label="クリック">
+            <span className="numeric text-ink-900">{formatStat(broadcast.clickCount)}</span>
           </Row>
           <Row label="種別">
             <span className="text-ink-700">{broadcast.messageType ?? 'text'}</span>
@@ -142,6 +157,26 @@ function Content({
             </Row>
           )}
         </Section>
+
+        <div
+          className="flex items-start gap-2 rounded-xl border px-3 py-2.5 text-[11px]"
+          style={{
+            borderColor: 'rgba(184,154,236,0.30)',
+            background:
+              'linear-gradient(135deg, rgba(245,143,184,0.06) 0%, rgba(184,154,236,0.08) 100%)',
+          }}
+        >
+          <Sparkles
+            size={12}
+            strokeWidth={2}
+            style={{ color: '#b89aec', marginTop: 2, flexShrink: 0 }}
+          />
+          <span className="text-ink-500">
+            開封 / クリックの集計と、誰がタップしたか個別追跡・非開封者への再配信は
+            <span className="font-semibold text-ink-700"> Phase 2 (5/30 以降) </span>
+            で本実装予定。v0.1 では「—」表示。
+          </span>
+        </div>
 
         <Section icon={Send} title="メッセージ">
           <p className="whitespace-pre-line rounded-xl border border-ink-100 bg-surface-50 px-3 py-2.5 text-xs text-ink-700">
@@ -254,4 +289,10 @@ function formatDateTime(s: string | null): string {
 
 function truncate(s: string, n: number) {
   return s.length > n ? s.slice(0, n) + '…' : s;
+}
+
+// page.tsx の formatStat と同じロジック: null / 0 → "—" (ゼロ表示は配信失敗誤読防止)
+function formatStat(n: number | null | undefined): string {
+  if (n == null || n === 0) return '—';
+  return String(n);
 }

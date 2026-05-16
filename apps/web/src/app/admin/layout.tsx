@@ -157,20 +157,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <button
         type="button"
         aria-label="AI Copilot を開く"
-        className="group fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold text-white transition-transform hover:-translate-y-0.5"
+        data-fab="ai-copilot"
+        className="group fixed bottom-10 right-0 z-50 flex flex-col items-center gap-2 rounded-l-2xl px-2.5 py-4 text-white"
         style={{
           background: 'var(--gradient-primary)',
           boxShadow:
-            '0 12px 36px -10px rgba(184,154,236,0.65), 0 6px 16px -6px rgba(245,143,184,0.45), inset 0 1px 0 rgba(255,255,255,0.4)',
+            '-10px 12px 32px -10px rgba(184,154,236,0.55), -6px 6px 16px -6px rgba(245,143,184,0.40), inset 1px 0 0 rgba(255,255,255,0.4)',
         }}
       >
         <span
           aria-hidden
-          className="absolute inset-0 -z-10 rounded-full opacity-60 blur-xl"
+          className="absolute inset-0 -z-10 rounded-l-2xl opacity-50 blur-xl"
           style={{ background: 'var(--gradient-primary)' }}
         />
-        <Sparkles size={16} strokeWidth={2} />
-        AI Copilot
+        <Sparkles size={18} strokeWidth={2} />
+        <span
+          className="text-[11px] font-semibold"
+          style={{ writingMode: 'vertical-rl', letterSpacing: '0.18em' }}
+        >
+          AI Copilot
+        </span>
       </button>
     </div>
   );

@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@linq-beauty/db';
 import { broadcasts, broadcastStats, lineAccounts, messages } from '@linq-beauty/db';
@@ -35,7 +35,11 @@ export class BroadcastsService {
   ) {}
 
   async list(tenantId: string, locationId?: string) {
-    return this.db
+    // broadcasts と broadcastStats を別クエリで取得して JS 側で merge する。
+    // (drizzle-orm の dual-package 型問題で leftJoin が型エラーを起こすため、
+    //  messages.threads と同じく 2 クエリ方式で回避)
+    // v0.1 では集計バッチ未実装のため stats は 0 のまま → UI 側で "—" 表示。
+    const rows = await this.db
       .select()
       .from(broadcasts)
       .where(
@@ -46,6 +50,25 @@ export class BroadcastsService {
       )
       .orderBy(desc(broadcasts.createdAt))
       .limit(100);
+
+    if (rows.length === 0) return [];
+
+    const broadcastIds = rows.map((r) => r.id);
+    const stats = await this.db
+      .select()
+      .from(broadcastStats)
+      .where(inArray(broadcastStats.broadcastId, broadcastIds));
+
+    const statsMap = new Map(stats.map((s) => [s.broadcastId, s]));
+
+    return rows.map((r) => {
+      const s = statsMap.get(r.id);
+      return {
+        ...r,
+        openCount: s?.responseCount ?? null,
+        clickCount: s?.clickCount ?? null,
+      };
+    });
   }
 
   async get(tenantId: string, id: string) {

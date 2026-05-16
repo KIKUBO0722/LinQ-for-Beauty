@@ -9,12 +9,37 @@ import {
   Sparkles,
   Loader2,
   Inbox as InboxIcon,
+  Heart,
 } from 'lucide-react';
 import { api, type MessageThread, type Message, TENANT_ID } from '@/lib/api';
 import { CustomerDetailDrawer, threadToSummary, type CustomerSummary } from './CustomerDetailDrawer';
 
-const filters = ['すべて', '未対応', '返信待ち', 'フォロー'] as const;
+// 「お気に入り」は v0.1 では localStorage 永続化、Phase 2 で customers.isFavorite 列に移行
+const filters = ['すべて', '未対応', '返信待ち', 'お気に入り'] as const;
 type Filter = (typeof filters)[number];
+
+const FAVORITES_STORAGE_KEY = 'linq-beauty:inbox-favorites';
+
+function loadFavorites(): Set<string> {
+  if (typeof window === 'undefined') return new Set();
+  try {
+    const raw = window.localStorage.getItem(FAVORITES_STORAGE_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? new Set(arr.filter((x): x is string => typeof x === 'string')) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveFavorites(s: Set<string>) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(Array.from(s)));
+  } catch {
+    // ignore quota / privacy mode errors
+  }
+}
 
 export default function InboxPage() {
   const [threads, setThreads] = useState<MessageThread[] | null>(null);
@@ -26,6 +51,21 @@ export default function InboxPage() {
   const [filter, setFilter] = useState<Filter>('すべて');
   const [drawerCustomer, setDrawerCustomer] = useState<CustomerSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [favorites, setFavorites] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    setFavorites(loadFavorites());
+  }, []);
+
+  const toggleFavorite = useCallback((customerId: string) => {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(customerId)) next.delete(customerId);
+      else next.add(customerId);
+      saveFavorites(next);
+      return next;
+    });
+  }, []);
 
   const refreshThreads = useCallback(async () => {
     try {
@@ -84,8 +124,9 @@ export default function InboxPage() {
     if (filter === '未対応') return threads.filter((t) => t.unreadCount > 0);
     if (filter === '返信待ち')
       return threads.filter((t) => t.lastMessageDirection === 'inbound');
+    if (filter === 'お気に入り') return threads.filter((t) => favorites.has(t.customerId));
     return threads;
-  }, [threads, filter]);
+  }, [threads, filter, favorites]);
 
   const onSend = async () => {
     if (!selectedId || !draft.trim() || sending) return;
@@ -111,6 +152,8 @@ export default function InboxPage() {
         onFilter={setFilter}
         selectedId={selectedId}
         onSelect={setSelectedId}
+        favorites={favorites}
+        onToggleFavorite={toggleFavorite}
       />
       <ChatPane
         thread={selectedThread}
@@ -140,6 +183,8 @@ function ListPane({
   onFilter,
   selectedId,
   onSelect,
+  favorites,
+  onToggleFavorite,
 }: {
   threads: MessageThread[];
   loading: boolean;
@@ -147,7 +192,10 @@ function ListPane({
   onFilter: (f: Filter) => void;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  favorites: Set<string>;
+  onToggleFavorite: (customerId: string) => void;
 }) {
+  const [burstingId, setBurstingId] = useState<string | null>(null);
   return (
     <aside className="flex h-full flex-col border-r border-ink-100 bg-surface-0">
       <div className="px-4 pt-4">
@@ -182,12 +230,20 @@ function ListPane({
             {threads.map((t) => {
               const lastText = previewText(t.lastMessage);
               const isActive = t.customerId === selectedId;
+              const isFavorite = favorites.has(t.customerId);
               return (
                 <li key={t.customerId}>
-                  <button
-                    type="button"
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => onSelect(t.customerId)}
-                    className="flex w-full items-start gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-surface-50"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelect(t.customerId);
+                      }
+                    }}
+                    className="flex w-full cursor-pointer items-start gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-surface-50"
                     style={isActive ? { background: '#e8f6ee' } : undefined}
                   >
                     <Avatar initial={t.customerName?.charAt(0) ?? '?'} />
@@ -202,9 +258,6 @@ function ListPane({
                             style={{ background: 'var(--line-green)' }}
                           />
                         )}
-                        <span className="ml-auto text-[10px] text-ink-300">
-                          {formatTime(t.lastMessageAt)}
-                        </span>
                       </div>
                       <p className="mt-0.5 truncate text-xs text-ink-500">{lastText}</p>
                       {t.unreadCount > 0 && (
@@ -216,7 +269,47 @@ function ListPane({
                         </span>
                       )}
                     </div>
-                  </button>
+                    <div className="flex shrink-0 flex-col items-end gap-1.5 pt-0.5">
+                      <span className="text-[10px] text-ink-300">
+                        {formatTime(t.lastMessageAt)}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={isFavorite ? 'お気に入り解除' : 'お気に入りに追加'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const wasFavorite = isFavorite;
+                          onToggleFavorite(t.customerId);
+                          // 登録時のみバースト発火 (解除時は静かに)
+                          if (!wasFavorite) {
+                            setBurstingId(t.customerId);
+                            window.setTimeout(() => {
+                              setBurstingId((cur) => (cur === t.customerId ? null : cur));
+                            }, 450);
+                          }
+                        }}
+                        className="relative rounded-full p-0.5 transition-transform hover:scale-110"
+                      >
+                        <Heart
+                          size={14}
+                          strokeWidth={1.75}
+                          fill={isFavorite ? '#f58fb8' : 'none'}
+                          color={isFavorite ? '#f58fb8' : '#a8a8a8'}
+                        />
+                        {burstingId === t.customerId && (
+                          <span className="heart-burst" aria-hidden>
+                            {[0, 72, 144, 216, 288].map((deg) => (
+                              <span
+                                key={deg}
+                                className="heart-burst-line"
+                                style={{ ['--burst-deg' as string]: `${deg}deg` }}
+                              />
+                            ))}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </li>
               );
             })}

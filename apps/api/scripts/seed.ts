@@ -169,7 +169,7 @@ async function main() {
   }
   console.log(`  ✓ greetings (${GREETINGS.length})`);
 
-  // Customers
+  // Customers (lastReadAt は null にリセット → seed 再実行で未読が復活する)
   for (const c of CUSTOMERS) {
     await db
       .insert(customers)
@@ -180,10 +180,11 @@ async function main() {
         lineUserId: c.lineUserId,
         phone: c.phone,
         preferredLocationId: c.preferredLocationId,
+        lastReadAt: null,
       })
       .onConflictDoUpdate({
         target: customers.id,
-        set: { name: c.name, phone: c.phone, preferredLocationId: c.preferredLocationId, updatedAt: new Date() },
+        set: { name: c.name, phone: c.phone, preferredLocationId: c.preferredLocationId, lastReadAt: null, updatedAt: new Date() },
       });
   }
   console.log(`  ✓ customers (${CUSTOMERS.length})`);

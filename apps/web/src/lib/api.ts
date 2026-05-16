@@ -241,6 +241,9 @@ export type Broadcast = {
   status: 'sent' | 'scheduled' | 'cancelled' | 'failed';
   autoTagOnResponse: string | null;
   createdAt: string;
+  // 開封 / クリック集計 — v0.1 では未集計のため通常 null or 0、Phase 2 で本実装
+  openCount?: number | null;
+  clickCount?: number | null;
 };
 
 export type MessageTemplate = {
