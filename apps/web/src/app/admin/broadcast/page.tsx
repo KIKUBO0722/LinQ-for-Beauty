@@ -12,6 +12,11 @@ import {
   Megaphone,
   FileText,
   Hand,
+  MessageSquare,
+  Layers,
+  HelpCircle,
+  GalleryHorizontal,
+  X,
 } from 'lucide-react';
 import {
   api,
@@ -21,6 +26,7 @@ import {
   TENANT_ID,
 } from '@/lib/api';
 import { BroadcastDetailDrawer } from './BroadcastDetailDrawer';
+import { LinePreview, templateToLineMessages, type MessageDataInput } from '@/components/line-preview';
 
 type SubTab = '新規配信' | '過去配信' | 'テンプレ' | 'あいさつ';
 const subTabs: SubTab[] = ['新規配信', '過去配信', 'テンプレ', 'あいさつ'];
@@ -262,15 +268,80 @@ function BroadcastsListTab({ onError }: { onError: (e: string) => void }) {
   );
 }
 
+type MessageTypeKind = 'text' | 'buttons' | 'confirm' | 'carousel';
+
+type ActionInput = {
+  type: 'message' | 'uri' | 'postback';
+  label: string;
+  text?: string;
+  uri?: string;
+  data?: string;
+};
+
+type CarouselColumnInput = {
+  thumbnailImageUrl?: string;
+  title?: string;
+  text: string;
+  actions: ActionInput[];
+};
+
+type TemplateMessageData = {
+  title?: string;
+  text?: string;
+  thumbnailImageUrl?: string;
+  actions?: ActionInput[];
+  columns?: CarouselColumnInput[];
+};
+
+type TemplateDraft = {
+  name: string;
+  content: string;
+  category: string;
+  messageType: MessageTypeKind;
+  messageData: TemplateMessageData;
+};
+
+const emptyDraft = (): TemplateDraft => ({
+  name: '',
+  content: '',
+  category: '',
+  messageType: 'text',
+  messageData: {},
+});
+
+const defaultActionForType: Record<'message' | 'uri' | 'postback', ActionInput> = {
+  message: { type: 'message', label: '', text: '' },
+  uri: { type: 'uri', label: '', uri: 'https://' },
+  postback: { type: 'postback', label: '', data: '' },
+};
+
+const initialMessageDataFor = (type: MessageTypeKind): TemplateMessageData => {
+  if (type === 'buttons') return { actions: [{ type: 'message', label: '', text: '' }] };
+  if (type === 'confirm') {
+    return {
+      actions: [
+        { type: 'message', label: 'はい', text: 'はい' },
+        { type: 'message', label: 'いいえ', text: 'いいえ' },
+      ],
+    };
+  }
+  if (type === 'carousel') {
+    return {
+      columns: [
+        {
+          text: '',
+          actions: [{ type: 'message', label: '', text: '' }],
+        },
+      ],
+    };
+  }
+  return {};
+};
+
 function TemplatesTab({ onError }: { onError: (e: string) => void }) {
   const [items, setItems] = useState<MessageTemplate[] | null>(null);
-  // selectedId: 既存テンプレの id / 'new' (新規モード) / null (未選択)
   const [selectedId, setSelectedId] = useState<string | 'new' | null>(null);
-  const [draft, setDraft] = useState<{ name: string; content: string; category: string }>({
-    name: '',
-    content: '',
-    category: '',
-  });
+  const [draft, setDraft] = useState<TemplateDraft>(emptyDraft);
 
   const refresh = useCallback(async () => {
     try {
@@ -285,26 +356,39 @@ function TemplatesTab({ onError }: { onError: (e: string) => void }) {
     refresh();
   }, [refresh]);
 
-  // 既存テンプレを選択したら draft にロード
   const onSelectExisting = (t: MessageTemplate) => {
     setSelectedId(t.id);
-    setDraft({ name: t.name, content: t.content, category: t.category ?? '' });
+    const type = (t.messageType as MessageTypeKind) || 'text';
+    setDraft({
+      name: t.name,
+      content: t.content,
+      category: t.category ?? '',
+      messageType: type,
+      messageData: (t.messageData as TemplateMessageData) ?? initialMessageDataFor(type),
+    });
   };
 
   const onStartNew = () => {
     setSelectedId('new');
-    setDraft({ name: '', content: '', category: '' });
+    setDraft(emptyDraft());
+  };
+
+  const buildPayload = () => {
+    const messageData = draft.messageType === 'text' ? null : (draft.messageData as Record<string, unknown>);
+    return {
+      name: draft.name,
+      content: draft.content,
+      category: draft.category || undefined,
+      messageType: draft.messageType,
+      messageData,
+    };
   };
 
   const onCreate = async () => {
     if (!draft.name.trim() || !draft.content.trim()) return;
     try {
-      await api.templates.create({
-        name: draft.name,
-        content: draft.content,
-        category: draft.category || undefined,
-      });
-      setDraft({ name: '', content: '', category: '' });
+      await api.templates.create(buildPayload());
+      setDraft(emptyDraft());
       setSelectedId(null);
       refresh();
     } catch (e) {
@@ -316,9 +400,12 @@ function TemplatesTab({ onError }: { onError: (e: string) => void }) {
     if (!selectedId || selectedId === 'new') return;
     if (!draft.name.trim() || !draft.content.trim()) return;
     try {
+      const payload = buildPayload();
       await api.templates.update(selectedId, {
-        name: draft.name,
-        content: draft.content,
+        name: payload.name,
+        content: payload.content,
+        messageType: payload.messageType,
+        messageData: payload.messageData,
       });
       refresh();
     } catch (e) {
@@ -331,15 +418,33 @@ function TemplatesTab({ onError }: { onError: (e: string) => void }) {
     try {
       await api.templates.remove(selectedId);
       setSelectedId(null);
-      setDraft({ name: '', content: '', category: '' });
+      setDraft(emptyDraft());
       refresh();
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e));
     }
   };
 
+  const onChangeType = (type: MessageTypeKind) => {
+    if (type === draft.messageType) return;
+    setDraft({ ...draft, messageType: type, messageData: initialMessageDataFor(type) });
+  };
+
+  const updateMessageData = (patch: Partial<TemplateMessageData>) => {
+    setDraft({ ...draft, messageData: { ...draft.messageData, ...patch } });
+  };
+
   const isEditing = selectedId !== null && selectedId !== 'new';
   const isNew = selectedId === 'new';
+
+  const previewMessages =
+    selectedId === null
+      ? []
+      : templateToLineMessages(
+          draft.messageType,
+          draft.content || draft.name || '本文を入力するとここに表示されます',
+          draft.messageData as MessageDataInput,
+        );
 
   return (
     <div className="grid grid-cols-[280px_1fr_280px] gap-4">
@@ -377,6 +482,7 @@ function TemplatesTab({ onError }: { onError: (e: string) => void }) {
                 >
                   <p className="flex items-center gap-1.5 text-sm font-semibold text-ink-900">
                     <span className="truncate">{t.name}</span>
+                    <MessageTypeBadge type={(t.messageType as MessageTypeKind) || 'text'} />
                     {t.category && (
                       <span className="shrink-0 rounded-full bg-surface-100 px-1.5 py-0.5 text-[9px] text-ink-500">
                         {t.category}
@@ -419,7 +525,7 @@ function TemplatesTab({ onError }: { onError: (e: string) => void }) {
             </p>
           </div>
         ) : (
-          <>
+          <div className="space-y-3">
             <Field label="名前">
               <input
                 value={draft.name}
@@ -437,20 +543,41 @@ function TemplatesTab({ onError }: { onError: (e: string) => void }) {
                 className="w-full rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none disabled:bg-surface-100 disabled:text-ink-500"
               />
             </Field>
-            <Field label="本文">
+
+            <Field label="メッセージタイプ">
+              <MessageTypeSelector value={draft.messageType} onChange={onChangeType} />
+            </Field>
+
+            <Field label="本文 (プレビュー・通知用)">
               <textarea
-                rows={6}
+                rows={draft.messageType === 'text' ? 6 : 3}
                 value={draft.content}
                 onChange={(e) => setDraft({ ...draft, content: e.target.value })}
+                placeholder={
+                  draft.messageType === 'text'
+                    ? '送信されるメッセージ本文を入力'
+                    : 'バブル本文 / 通知に表示されるテキスト'
+                }
                 className="w-full resize-none rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-sm outline-none"
               />
             </Field>
+
+            {draft.messageType === 'buttons' && (
+              <ButtonsEditor data={draft.messageData} onChange={updateMessageData} />
+            )}
+            {draft.messageType === 'confirm' && (
+              <ConfirmEditor data={draft.messageData} onChange={updateMessageData} />
+            )}
+            {draft.messageType === 'carousel' && (
+              <CarouselEditor data={draft.messageData} onChange={updateMessageData} />
+            )}
+
             <div className="mt-2 flex gap-2">
               <button
                 type="button"
                 onClick={() => {
                   setSelectedId(null);
-                  setDraft({ name: '', content: '', category: '' });
+                  setDraft(emptyDraft());
                 }}
                 className="flex-1 rounded-full border border-ink-100 px-3 py-2 text-sm text-ink-700 hover:bg-surface-50"
               >
@@ -476,14 +603,346 @@ function TemplatesTab({ onError }: { onError: (e: string) => void }) {
                 )}
               </button>
             </div>
-          </>
+          </div>
         )}
       </Card>
 
-      {/* 右: スマホモック (固定、新規配信タブと統一) */}
+      {/* 右: LinePreview (4 タイプ全対応) */}
       <Card title="プレビュー">
-        <PhoneMockup text={draft.content || '本文を入力するとここに表示されます'} />
+        <LinePreview messages={previewMessages} botName="LinQ for Beauty" />
       </Card>
+    </div>
+  );
+}
+
+function MessageTypeBadge({ type }: { type: MessageTypeKind }) {
+  if (type === 'text') return null;
+  const label = type === 'buttons' ? 'BTN' : type === 'confirm' ? 'CFM' : 'CRSL';
+  return (
+    <span className="shrink-0 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700">
+      {label}
+    </span>
+  );
+}
+
+function MessageTypeSelector({
+  value,
+  onChange,
+}: {
+  value: MessageTypeKind;
+  onChange: (type: MessageTypeKind) => void;
+}) {
+  const types: { id: MessageTypeKind; label: string; Icon: typeof MessageSquare }[] = [
+    { id: 'text', label: 'テキスト', Icon: MessageSquare },
+    { id: 'buttons', label: 'ボタン', Icon: Layers },
+    { id: 'confirm', label: '確認', Icon: HelpCircle },
+    { id: 'carousel', label: 'カルーセル', Icon: GalleryHorizontal },
+  ];
+  return (
+    <div className="grid grid-cols-4 gap-1.5">
+      {types.map(({ id, label, Icon }) => {
+        const active = value === id;
+        return (
+          <button
+            key={id}
+            type="button"
+            onClick={() => onChange(id)}
+            className="flex flex-col items-center gap-1 rounded-xl border px-2 py-2 text-[11px] font-medium transition-colors"
+            style={{
+              borderColor: active ? 'var(--line-green)' : 'var(--ink-100)',
+              background: active ? '#e8f6ee' : 'var(--surface-0)',
+              color: active ? '#0a8d48' : 'var(--ink-700)',
+            }}
+          >
+            <Icon size={14} strokeWidth={1.75} />
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ButtonsEditor({
+  data,
+  onChange,
+}: {
+  data: TemplateMessageData;
+  onChange: (patch: Partial<TemplateMessageData>) => void;
+}) {
+  const actions = data.actions ?? [];
+  const updateActions = (next: ActionInput[]) => onChange({ actions: next });
+  return (
+    <div className="space-y-2 rounded-xl border border-ink-100 bg-surface-50 p-3">
+      <Field label="タイトル (任意、最大 40 文字)">
+        <input
+          value={data.title ?? ''}
+          onChange={(e) => onChange({ title: e.target.value })}
+          maxLength={40}
+          className="w-full rounded-lg border border-ink-100 bg-surface-0 px-3 py-1.5 text-sm outline-none"
+        />
+      </Field>
+      <Field label="画像 URL (任意)">
+        <input
+          type="url"
+          value={data.thumbnailImageUrl ?? ''}
+          onChange={(e) => onChange({ thumbnailImageUrl: e.target.value })}
+          placeholder="https://example.com/image.jpg"
+          className="w-full rounded-lg border border-ink-100 bg-surface-0 px-3 py-1.5 text-sm outline-none"
+        />
+      </Field>
+      <ActionsEditor
+        actions={actions}
+        onChange={updateActions}
+        max={4}
+        labelText="アクション (1〜4 個)"
+      />
+    </div>
+  );
+}
+
+function ConfirmEditor({
+  data,
+  onChange,
+}: {
+  data: TemplateMessageData;
+  onChange: (patch: Partial<TemplateMessageData>) => void;
+}) {
+  const actions = data.actions ?? [
+    { type: 'message', label: 'はい', text: 'はい' },
+    { type: 'message', label: 'いいえ', text: 'いいえ' },
+  ];
+  return (
+    <div className="space-y-2 rounded-xl border border-ink-100 bg-surface-50 p-3">
+      <p className="text-[11px] text-ink-500">
+        確認ダイアログには必ず 2 つのアクションを設定します。
+      </p>
+      <ActionsEditor
+        actions={actions}
+        onChange={(next) => onChange({ actions: next.slice(0, 2) })}
+        max={2}
+        min={2}
+        labelText="アクション (2 個固定)"
+      />
+    </div>
+  );
+}
+
+function CarouselEditor({
+  data,
+  onChange,
+}: {
+  data: TemplateMessageData;
+  onChange: (patch: Partial<TemplateMessageData>) => void;
+}) {
+  const columns = data.columns ?? [];
+  const updateColumns = (next: CarouselColumnInput[]) => onChange({ columns: next });
+  const addColumn = () => {
+    if (columns.length >= 10) return;
+    updateColumns([
+      ...columns,
+      { text: '', actions: [{ type: 'message', label: '', text: '' }] },
+    ]);
+  };
+  return (
+    <div className="space-y-2 rounded-xl border border-ink-100 bg-surface-50 p-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-medium text-ink-700">列 ({columns.length} / 10)</p>
+        <button
+          type="button"
+          onClick={addColumn}
+          disabled={columns.length >= 10}
+          className="flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white disabled:opacity-50"
+          style={{ background: 'var(--line-green)' }}
+        >
+          <Plus size={10} strokeWidth={2.5} />
+          列を追加
+        </button>
+      </div>
+      <div className="space-y-2">
+        {columns.map((col, i) => (
+          <div key={i} className="rounded-lg border border-ink-100 bg-surface-0 p-2.5">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-ink-700">列 {i + 1}</span>
+              <button
+                type="button"
+                onClick={() => updateColumns(columns.filter((_, j) => j !== i))}
+                disabled={columns.length <= 1}
+                className="rounded-full p-1 text-red-400 hover:bg-red-50 hover:text-red-700 disabled:opacity-30"
+                aria-label="列削除"
+              >
+                <Trash2 size={11} strokeWidth={1.75} />
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              <input
+                type="url"
+                value={col.thumbnailImageUrl ?? ''}
+                onChange={(e) =>
+                  updateColumns(
+                    columns.map((c, j) =>
+                      j === i ? { ...c, thumbnailImageUrl: e.target.value } : c,
+                    ),
+                  )
+                }
+                placeholder="画像 URL (任意)"
+                className="w-full rounded-lg border border-ink-100 bg-surface-0 px-2.5 py-1.5 text-[12px] outline-none"
+              />
+              <input
+                value={col.title ?? ''}
+                onChange={(e) =>
+                  updateColumns(
+                    columns.map((c, j) => (j === i ? { ...c, title: e.target.value } : c)),
+                  )
+                }
+                placeholder="タイトル (任意)"
+                maxLength={40}
+                className="w-full rounded-lg border border-ink-100 bg-surface-0 px-2.5 py-1.5 text-[12px] outline-none"
+              />
+              <textarea
+                rows={2}
+                value={col.text}
+                onChange={(e) =>
+                  updateColumns(
+                    columns.map((c, j) => (j === i ? { ...c, text: e.target.value } : c)),
+                  )
+                }
+                placeholder="本文 (必須、60 文字程度)"
+                maxLength={60}
+                className="w-full resize-none rounded-lg border border-ink-100 bg-surface-0 px-2.5 py-1.5 text-[12px] outline-none"
+              />
+              <ActionsEditor
+                actions={col.actions}
+                onChange={(next) =>
+                  updateColumns(
+                    columns.map((c, j) => (j === i ? { ...c, actions: next } : c)),
+                  )
+                }
+                max={3}
+                labelText="アクション (1〜3 個)"
+                compact
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ActionsEditor({
+  actions,
+  onChange,
+  max,
+  min = 1,
+  labelText,
+  compact = false,
+}: {
+  actions: ActionInput[];
+  onChange: (next: ActionInput[]) => void;
+  max: number;
+  min?: number;
+  labelText: string;
+  compact?: boolean;
+}) {
+  const addAction = () => {
+    if (actions.length >= max) return;
+    onChange([...actions, { ...defaultActionForType.message }]);
+  };
+  const removeAction = (i: number) => {
+    if (actions.length <= min) return;
+    onChange(actions.filter((_, j) => j !== i));
+  };
+  const updateAction = (i: number, patch: Partial<ActionInput>) => {
+    onChange(
+      actions.map((a, j) => {
+        if (j !== i) return a;
+        if (patch.type && patch.type !== a.type) {
+          return { ...defaultActionForType[patch.type], label: a.label };
+        }
+        return { ...a, ...patch };
+      }),
+    );
+  };
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className={compact ? 'text-[10px] font-medium text-ink-500' : 'text-[11px] font-medium text-ink-700'}>
+          {labelText}
+        </span>
+        {max > min && (
+          <button
+            type="button"
+            onClick={addAction}
+            disabled={actions.length >= max}
+            className="flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-medium text-ink-700 hover:bg-surface-100 disabled:opacity-30"
+          >
+            <Plus size={10} strokeWidth={2} />
+            追加
+          </button>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        {actions.map((a, i) => (
+          <div key={i} className="rounded-lg border border-ink-100 bg-surface-0 p-2">
+            <div className="flex items-center gap-1.5">
+              <select
+                value={a.type}
+                onChange={(e) => updateAction(i, { type: e.target.value as ActionInput['type'] })}
+                className="rounded-md border border-ink-100 bg-surface-0 px-1.5 py-1 text-[11px] outline-none"
+              >
+                <option value="message">メッセージ</option>
+                <option value="uri">URL</option>
+                <option value="postback">postback</option>
+              </select>
+              <input
+                value={a.label}
+                onChange={(e) => updateAction(i, { label: e.target.value })}
+                placeholder="ボタンラベル (20 文字以内)"
+                maxLength={20}
+                className="flex-1 rounded-md border border-ink-100 bg-surface-0 px-2 py-1 text-[11px] outline-none"
+              />
+              {actions.length > min && (
+                <button
+                  type="button"
+                  onClick={() => removeAction(i)}
+                  aria-label="アクション削除"
+                  className="rounded-full p-1 text-red-400 hover:bg-red-50 hover:text-red-700"
+                >
+                  <X size={10} strokeWidth={2} />
+                </button>
+              )}
+            </div>
+            <div className="mt-1.5">
+              {a.type === 'message' && (
+                <input
+                  value={a.text ?? ''}
+                  onChange={(e) => updateAction(i, { text: e.target.value })}
+                  placeholder="送信されるテキスト"
+                  className="w-full rounded-md border border-ink-100 bg-surface-0 px-2 py-1 text-[11px] outline-none"
+                />
+              )}
+              {a.type === 'uri' && (
+                <input
+                  type="url"
+                  value={a.uri ?? ''}
+                  onChange={(e) => updateAction(i, { uri: e.target.value })}
+                  placeholder="https://example.com"
+                  className="w-full rounded-md border border-ink-100 bg-surface-0 px-2 py-1 text-[11px] outline-none"
+                />
+              )}
+              {a.type === 'postback' && (
+                <input
+                  value={a.data ?? ''}
+                  onChange={(e) => updateAction(i, { data: e.target.value })}
+                  placeholder="postback data (例: action=reserve)"
+                  className="w-full rounded-md border border-ink-100 bg-surface-0 px-2 py-1 text-[11px] outline-none"
+                />
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

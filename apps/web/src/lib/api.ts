@@ -178,7 +178,13 @@ export const api = {
       return req<MessageTemplate[]>(`/api/v1/templates?tenantId=${TENANT_ID}${loc}`);
     },
     create: (
-      body: { name: string; content: string; category?: string; messageType?: string },
+      body: {
+        name: string;
+        content: string;
+        category?: string;
+        messageType?: string;
+        messageData?: Record<string, unknown> | null;
+      },
       locationId?: string,
     ) => {
       const loc = locationId ? `&locationId=${locationId}` : '';
@@ -189,7 +195,13 @@ export const api = {
     },
     update: (
       id: string,
-      body: { name?: string; content?: string; category?: string; messageType?: string },
+      body: {
+        name?: string;
+        content?: string;
+        category?: string;
+        messageType?: string;
+        messageData?: Record<string, unknown> | null;
+      },
     ) =>
       req<MessageTemplate>(`/api/v1/templates/${id}?tenantId=${TENANT_ID}`, {
         method: 'PATCH',
