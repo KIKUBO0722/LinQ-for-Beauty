@@ -32,6 +32,7 @@ import {
   reservations,
   messages,
   richMenus,
+  coupons,
 } from '@linq-beauty/db';
 
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -63,6 +64,25 @@ const TEMPLATES: Array<{ id: string; name: string; content: string; category: st
 const GREETINGS: Array<{ id: string; type: string; name: string; messages: Array<Record<string, unknown>> }> = [
   { id: '66666666-6666-6666-6666-666666666601', type: 'welcome', name: '友だち追加直後',         messages: [{ type: 'text', text: 'はじめまして、癒明です。\nご来店のご予約は LINE からお気軽にどうぞ。' }] },
   { id: '66666666-6666-6666-6666-666666666602', type: 'thanks',  name: '来店後 1 時間お礼', messages: [{ type: 'text', text: '本日はご来店ありがとうございました。\nまたお会いできるのを楽しみにしております。' }] },
+];
+
+// 美容業界共通プリセット 5 種 (店舗固有名 hardcode せず、locationId=null で全拠点共通)
+// 参照: Projects/LinQ-for-Beauty/.claude/spec.md §「業界共通プリセット」
+const COUPONS: Array<{
+  id: string;
+  name: string;
+  code: string;
+  discountType: 'percent' | 'fixed';
+  discountValue: number;
+  description: string;
+  daysUntilExpiry: number;
+  maxUses: number | null;
+}> = [
+  { id: '88888888-8888-8888-8888-888888888801', name: '新規来店割引',     code: 'WELCOME20', discountType: 'percent', discountValue: 20,   description: '初めてのご来店で 20% OFF',                       daysUntilExpiry: 30, maxUses: null },
+  { id: '88888888-8888-8888-8888-888888888802', name: 'リピート促進',     code: 'REPEAT10',  discountType: 'percent', discountValue: 10,   description: '前回来店から 60 日以内の再来店で 10% OFF',     daysUntilExpiry: 60, maxUses: null },
+  { id: '88888888-8888-8888-8888-888888888803', name: '季節キャンペーン', code: 'SEASON1K',  discountType: 'fixed',   discountValue: 1000, description: '季節限定 1,000 円 OFF',                          daysUntilExpiry: 45, maxUses: 100  },
+  { id: '88888888-8888-8888-8888-888888888804', name: '紹介クーポン',     code: 'FRIEND15',  discountType: 'percent', discountValue: 15,   description: 'お友達紹介でご紹介者・お友達ともに 15% OFF', daysUntilExpiry: 90, maxUses: null },
+  { id: '88888888-8888-8888-8888-888888888805', name: '誕生月特典',       code: 'BIRTHDAY',  discountType: 'percent', discountValue: 30,   description: '誕生月のご来店で 30% OFF',                       daysUntilExpiry: 30, maxUses: null },
 ];
 
 const CUSTOMERS: Array<{ id: string; name: string; lineUserId: string; phone: string; preferredLocationId: string }> = [
@@ -161,6 +181,40 @@ async function main() {
       });
   }
   console.log(`  ✓ templates (${TEMPLATES.length})`);
+
+  // Coupons (業界共通プリセット 5 種、locationId=null で全拠点共通)
+  for (const c of COUPONS) {
+    const expiresAt = new Date(Date.now() + c.daysUntilExpiry * 86400_000);
+    await db
+      .insert(coupons)
+      .values({
+        id: c.id,
+        tenantId: TENANT_ID,
+        locationId: null,
+        name: c.name,
+        code: c.code,
+        discountType: c.discountType,
+        discountValue: c.discountValue,
+        description: c.description,
+        expiresAt,
+        maxUses: c.maxUses,
+        isActive: true,
+      })
+      .onConflictDoUpdate({
+        target: coupons.id,
+        set: {
+          name: c.name,
+          code: c.code,
+          discountType: c.discountType,
+          discountValue: c.discountValue,
+          description: c.description,
+          expiresAt,
+          maxUses: c.maxUses,
+          updatedAt: new Date(),
+        },
+      });
+  }
+  console.log(`  ✓ coupons (${COUPONS.length})`);
 
   // Greetings
   for (const g of GREETINGS) {

@@ -15,6 +15,7 @@ import { GreetingsModule } from './modules/greetings/greetings.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { BroadcastsModule } from './modules/broadcasts/broadcasts.module';
 import { RichMenusModule } from './modules/rich-menus/rich-menus.module';
+import { CouponsModule } from './modules/coupons/coupons.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { RichMenusModule } from './modules/rich-menus/rich-menus.module';
     MessagesModule,
     BroadcastsModule,
     RichMenusModule,
+    CouponsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

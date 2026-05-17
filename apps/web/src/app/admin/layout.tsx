@@ -25,7 +25,7 @@ const sideNav: { label: string; href: string; Icon: LucideIcon }[] = [
   { label: 'お客様', href: '#', Icon: Users },
   { label: '配信先', href: '#', Icon: Layers },
   { label: '配信', href: '/admin/broadcast', Icon: Megaphone },
-  { label: 'クーポン', href: '#', Icon: Ticket },
+  { label: 'クーポン', href: '/admin/coupons', Icon: Ticket },
   { label: 'リッチメニュー', href: '#', Icon: LayoutGrid },
   { label: '自動化', href: '/admin/automation', Icon: Workflow },
   { label: '分析', href: '/admin/analytics', Icon: BarChart3 },

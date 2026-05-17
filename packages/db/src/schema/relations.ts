@@ -10,6 +10,7 @@ import { messageTemplates } from './templates';
 import { greetingMessages } from './greetings';
 import { broadcasts, broadcastStats, blockEvents } from './broadcasts';
 import { richMenuGroups, richMenus } from './rich-menus';
+import { coupons } from './coupons';
 
 export const reservationsRelations = relations(reservations, ({ one }) => ({
   customers: one(customers, {
@@ -126,4 +127,9 @@ export const richMenusRelations = relations(richMenus, ({ one }) => ({
   locations: one(locations, { fields: [richMenus.locationId], references: [locations.id] }),
   lineAccounts: one(lineAccounts, { fields: [richMenus.lineAccountId], references: [lineAccounts.id] }),
   group: one(richMenuGroups, { fields: [richMenus.groupId], references: [richMenuGroups.id] }),
+}));
+
+export const couponsRelations = relations(coupons, ({ one }) => ({
+  tenants: one(tenants, { fields: [coupons.tenantId], references: [tenants.id] }),
+  locations: one(locations, { fields: [coupons.locationId], references: [locations.id] }),
 }));

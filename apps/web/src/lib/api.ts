@@ -210,6 +210,55 @@ export const api = {
     remove: (id: string) =>
       req<{ ok: boolean }>(`/api/v1/templates/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
   },
+  coupons: {
+    list: (locationId?: string) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<Coupon[]>(`/api/v1/coupons?tenantId=${TENANT_ID}${loc}`);
+    },
+    generateCode: () =>
+      req<{ code: string }>(`/api/v1/coupons/generate-code?tenantId=${TENANT_ID}`, { method: 'POST' }),
+    create: (
+      body: {
+        name: string;
+        code: string;
+        discountType: 'percent' | 'fixed';
+        discountValue: number;
+        description?: string;
+        expiresAt?: string;
+        maxUses?: number;
+      },
+      locationId?: string,
+    ) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<Coupon>(`/api/v1/coupons?tenantId=${TENANT_ID}${loc}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+    },
+    update: (
+      id: string,
+      body: {
+        name?: string;
+        code?: string;
+        discountType?: 'percent' | 'fixed';
+        discountValue?: number;
+        description?: string;
+        expiresAt?: string | null;
+        maxUses?: number | null;
+      },
+    ) =>
+      req<Coupon>(`/api/v1/coupons/${id}?tenantId=${TENANT_ID}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    toggle: (id: string, isActive: boolean) =>
+      req<Coupon>(`/api/v1/coupons/${id}/toggle?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        body: JSON.stringify({ isActive }),
+      }),
+    remove: (id: string) =>
+      req<{ ok: boolean }>(`/api/v1/coupons/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
+  },
   greetings: {
     list: (locationId?: string) => {
       const loc = locationId ? `&locationId=${locationId}` : '';
@@ -267,6 +316,23 @@ export type MessageTemplate = {
   category: string | null;
   messageType: string;
   messageData: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Coupon = {
+  id: string;
+  tenantId: string;
+  locationId: string | null;
+  name: string;
+  code: string;
+  discountType: string;
+  discountValue: number;
+  description: string | null;
+  expiresAt: string | null;
+  maxUses: number | null;
+  usedCount: number;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 };

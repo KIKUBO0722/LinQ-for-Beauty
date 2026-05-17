@@ -12,4 +12,5 @@ export * from './templates';
 export * from './greetings';
 export * from './broadcasts';
 export * from './rich-menus';
+export * from './coupons';
 export * from './relations';
