@@ -211,11 +211,22 @@ export const api = {
       req<{ ok: boolean }>(`/api/v1/templates/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
   },
   customers: {
-    list: (opts?: { locationId?: string; search?: string; limit?: number; offset?: number }) => {
+    list: (opts?: {
+      locationId?: string;
+      search?: string;
+      tagIds?: string[];
+      chatStatus?: string;
+      engagementTier?: string;
+      limit?: number;
+      offset?: number;
+    }) => {
       const qs = [
         `tenantId=${TENANT_ID}`,
         opts?.locationId ? `locationId=${opts.locationId}` : '',
         opts?.search ? `search=${encodeURIComponent(opts.search)}` : '',
+        opts?.tagIds && opts.tagIds.length > 0 ? `tagIds=${opts.tagIds.join(',')}` : '',
+        opts?.chatStatus ? `chatStatus=${opts.chatStatus}` : '',
+        opts?.engagementTier ? `engagementTier=${opts.engagementTier}` : '',
         opts?.limit ? `limit=${opts.limit}` : '',
         opts?.offset ? `offset=${opts.offset}` : '',
       ]
@@ -226,6 +237,18 @@ export const api = {
     get: (id: string) => req<CustomerWithTags>(`/api/v1/customers/${id}?tenantId=${TENANT_ID}`),
     listTags: (id: string) =>
       req<Tag[]>(`/api/v1/customers/${id}/tags?tenantId=${TENANT_ID}`),
+    timeline: (id: string, opts?: { limit?: number; offset?: number }) => {
+      const qs = [
+        `tenantId=${TENANT_ID}`,
+        opts?.limit ? `limit=${opts.limit}` : '',
+        opts?.offset ? `offset=${opts.offset}` : '',
+      ]
+        .filter(Boolean)
+        .join('&');
+      return req<{ events: TimelineEvent[]; total: number }>(
+        `/api/v1/customers/${id}/timeline?${qs}`,
+      );
+    },
     update: (
       id: string,
       body: {
@@ -246,6 +269,18 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(body),
       }),
+    updateCustomFields: (id: string, patch: Record<string, unknown>) =>
+      req<{ ok: boolean; customFields: Record<string, unknown> }>(
+        `/api/v1/customers/${id}/custom-fields?tenantId=${TENANT_ID}`,
+        { method: 'PATCH', body: JSON.stringify(patch) },
+      ),
+    exportCsvUrl: () =>
+      `${BASE}/api/v1/customers/export/csv?tenantId=${TENANT_ID}`,
+    importCsv: (csv: string) =>
+      req<{ imported: number; updated: number; tagsCreated: number; errors: string[] }>(
+        `/api/v1/customers/import/csv?tenantId=${TENANT_ID}`,
+        { method: 'POST', body: JSON.stringify({ csv }) },
+      ),
   },
   tags: {
     list: (category?: string) => {
@@ -425,6 +460,19 @@ export type Tag = {
 };
 
 export type CustomerWithTags = Customer & { tags: Tag[] };
+
+export type TimelineEvent = {
+  id: string;
+  type:
+    | 'message_received'
+    | 'message_sent'
+    | 'reservation'
+    | 'tag_added'
+    | 'followed'
+    | 'unfollowed';
+  timestamp: string;
+  data: Record<string, unknown>;
+};
 
 export type Coupon = {
   id: string;

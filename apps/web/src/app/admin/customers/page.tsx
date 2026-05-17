@@ -10,6 +10,8 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
+  Download,
+  Upload,
 } from 'lucide-react';
 import {
   api,
@@ -18,6 +20,7 @@ import {
   type Location,
   TENANT_ID,
 } from '@/lib/api';
+import { CustomerDetailDrawer } from './CustomerDetailDrawer';
 
 const CATEGORIES: { id: string; label: string; defaultColor: string }[] = [
   { id: 'treatment', label: '施術タイプ', defaultColor: '#f58fb8' },
@@ -43,13 +46,23 @@ export default function CustomersPage() {
   const [tagsAll, setTagsAll] = useState<Tag[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [search, setSearch] = useState('');
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [chatStatusFilter, setChatStatusFilter] = useState('');
+  const [tierFilter, setTierFilter] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tagsExpanded, setTagsExpanded] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
       const [cs, ts, locs] = await Promise.all([
-        api.customers.list({ search: search || undefined }),
+        api.customers.list({
+          search: search || undefined,
+          tagIds: tagFilter.length > 0 ? tagFilter : undefined,
+          chatStatus: chatStatusFilter || undefined,
+          engagementTier: tierFilter || undefined,
+        }),
         api.tags.list(),
         api.locations.list(),
       ]);
@@ -60,11 +73,39 @@ export default function CustomersPage() {
       setError(e instanceof Error ? e.message : String(e));
       setCustomers([]);
     }
-  }, [search]);
+  }, [search, tagFilter, chatStatusFilter, tierFilter]);
 
   useEffect(() => {
     if (TENANT_ID) refresh();
   }, [refresh]);
+
+  const selectedCustomer = customers?.find((c) => c.id === selectedId) ?? null;
+
+  const onExportCsv = () => {
+    window.open(api.customers.exportCsvUrl(), '_blank');
+  };
+
+  const onImportCsv = async (file: File) => {
+    setImporting(true);
+    try {
+      const csv = await file.text();
+      const result = await api.customers.importCsv(csv);
+      alert(
+        `インポート完了\n新規: ${result.imported} 件 / 更新: ${result.updated} 件 / タグ新規作成: ${result.tagsCreated} 件${result.errors.length > 0 ? '\n\nエラー:\n' + result.errors.join('\n') : ''}`,
+      );
+      refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const toggleTagFilter = (tagId: string) => {
+    setTagFilter((prev) =>
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId],
+    );
+  };
 
   if (!TENANT_ID) {
     return (
@@ -95,18 +136,55 @@ export default function CustomersPage() {
         onError={setError}
       />
 
+      <FilterBar
+        tagsAll={tagsAll}
+        tagFilter={tagFilter}
+        onToggleTagFilter={toggleTagFilter}
+        chatStatusFilter={chatStatusFilter}
+        onChangeChatStatus={setChatStatusFilter}
+        tierFilter={tierFilter}
+        onChangeTier={setTierFilter}
+      />
+
       <Card
         title={`顧客一覧 (${customers?.length ?? 0})`}
         right={
-          <div className="flex items-center gap-1.5 rounded-full border border-ink-100 bg-surface-0 px-3 py-1">
-            <Search size={11} strokeWidth={1.75} className="text-ink-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="名前 / phone / email で検索"
-              className="w-56 bg-transparent text-[11px] outline-none"
-            />
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 rounded-full border border-ink-100 bg-surface-0 px-3 py-1">
+              <Search size={11} strokeWidth={1.75} className="text-ink-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="名前 / phone / email"
+                className="w-44 bg-transparent text-[11px] outline-none"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={onExportCsv}
+              className="flex items-center gap-0.5 rounded-full border border-ink-100 px-2.5 py-1 text-[10px] font-medium text-ink-700 hover:bg-surface-50"
+            >
+              <Download size={11} strokeWidth={2} />
+              CSV
+            </button>
+            <label className="flex cursor-pointer items-center gap-0.5 rounded-full border border-ink-100 px-2.5 py-1 text-[10px] font-medium text-ink-700 hover:bg-surface-50">
+              <Upload size={11} strokeWidth={2} />
+              {importing ? '取込中…' : 'インポート'}
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                disabled={importing}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    onImportCsv(file);
+                    e.target.value = '';
+                  }
+                }}
+                className="hidden"
+              />
+            </label>
           </div>
         }
       >
@@ -132,7 +210,8 @@ export default function CustomersPage() {
               {customers.map((c) => (
                 <tr
                   key={c.id}
-                  className="border-b border-ink-100/70 transition-colors last:border-0 hover:bg-surface-50"
+                  onClick={() => setSelectedId(c.id)}
+                  className="cursor-pointer border-b border-ink-100/70 transition-colors last:border-0 hover:bg-surface-50"
                 >
                   <td className="py-2.5 align-top">
                     <p className="font-semibold text-ink-900">{c.name || c.displayName || '（無名）'}</p>
@@ -175,8 +254,122 @@ export default function CustomersPage() {
         )}
       </Card>
 
+      <CustomerDetailDrawer
+        customer={selectedCustomer}
+        tagsAll={tagsAll}
+        locations={locations}
+        onClose={() => setSelectedId(null)}
+        onRefresh={refresh}
+        onError={setError}
+      />
+
       {error && <ErrorToast text={error} onClose={() => setError(null)} />}
     </div>
+  );
+}
+
+function FilterBar({
+  tagsAll,
+  tagFilter,
+  onToggleTagFilter,
+  chatStatusFilter,
+  onChangeChatStatus,
+  tierFilter,
+  onChangeTier,
+}: {
+  tagsAll: Tag[];
+  tagFilter: string[];
+  onToggleTagFilter: (tagId: string) => void;
+  chatStatusFilter: string;
+  onChangeChatStatus: (v: string) => void;
+  tierFilter: string;
+  onChangeTier: (v: string) => void;
+}) {
+  const tagsByCategory = useMemo(() => {
+    const map = new Map<string, Tag[]>();
+    for (const t of tagsAll) {
+      const key = t.category ?? 'その他';
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(t);
+    }
+    return map;
+  }, [tagsAll]);
+
+  return (
+    <Card title="絞り込み">
+      <div className="space-y-2">
+        {/* タグ AND フィルタ */}
+        <div>
+          <p className="mb-1 text-[10px] font-medium text-ink-500">タグ (複数選択で AND)</p>
+          <div className="flex flex-wrap gap-1">
+            {[...tagsByCategory.entries()].map(([, list]) =>
+              list.map((t) => {
+                const active = tagFilter.includes(t.id);
+                const color = t.color ?? '#94a3b8';
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => onToggleTagFilter(t.id)}
+                    className="rounded-full px-2 py-0.5 text-[10px] font-medium transition-opacity"
+                    style={{
+                      background: active ? color : `${color}22`,
+                      color: active ? '#fff' : color,
+                      opacity: active ? 1 : 0.85,
+                    }}
+                  >
+                    {active ? '✓ ' : ''}
+                    {t.name}
+                  </button>
+                );
+              }),
+            )}
+            {tagFilter.length > 0 && (
+              <button
+                type="button"
+                onClick={() => tagFilter.forEach((id) => onToggleTagFilter(id))}
+                className="rounded-full border border-ink-100 px-2 py-0.5 text-[10px] text-ink-500 hover:bg-surface-50"
+              >
+                クリア
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* chatStatus / engagementTier セレクト */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-ink-500">対応</span>
+            <select
+              value={chatStatusFilter}
+              onChange={(e) => onChangeChatStatus(e.target.value)}
+              className="rounded-md border border-ink-100 bg-surface-0 px-2 py-1 text-[11px] outline-none"
+            >
+              <option value="">全て</option>
+              <option value="unread">未読</option>
+              <option value="replied">返信済</option>
+              <option value="pending">保留</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[10px] text-ink-500">活性度</span>
+            <select
+              value={tierFilter}
+              onChange={(e) => onChangeTier(e.target.value)}
+              className="rounded-md border border-ink-100 bg-surface-0 px-2 py-1 text-[11px] outline-none"
+            >
+              <option value="">全て</option>
+              <option value="new">新規</option>
+              <option value="active">活発</option>
+              <option value="warm">微活発</option>
+              <option value="cold">冷却</option>
+              <option value="sleeping">休眠</option>
+              <option value="unknown">不明</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }
 
