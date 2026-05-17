@@ -16,6 +16,8 @@ import { MessagesModule } from './modules/messages/messages.module';
 import { BroadcastsModule } from './modules/broadcasts/broadcasts.module';
 import { RichMenusModule } from './modules/rich-menus/rich-menus.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
+import { TagsModule } from './modules/tags/tags.module';
+import { CustomersModule } from './modules/customers/customers.module';
 
 @Module({
   imports: [
@@ -42,6 +44,8 @@ import { CouponsModule } from './modules/coupons/coupons.module';
     BroadcastsModule,
     RichMenusModule,
     CouponsModule,
+    TagsModule,
+    CustomersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

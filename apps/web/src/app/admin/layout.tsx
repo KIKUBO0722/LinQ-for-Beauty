@@ -22,7 +22,7 @@ import { Logo } from '../_components/Logo';
 const sideNav: { label: string; href: string; Icon: LucideIcon }[] = [
   { label: 'ホーム', href: '/admin/dashboard', Icon: Home },
   { label: '予約', href: '/admin/calendar', Icon: CalendarDays },
-  { label: 'お客様', href: '#', Icon: Users },
+  { label: 'お客様', href: '/admin/customers', Icon: Users },
   { label: '配信先', href: '#', Icon: Layers },
   { label: '配信', href: '/admin/broadcast', Icon: Megaphone },
   { label: 'クーポン', href: '/admin/coupons', Icon: Ticket },

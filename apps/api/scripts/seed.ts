@@ -33,6 +33,8 @@ import {
   messages,
   richMenus,
   coupons,
+  tags,
+  customerTags,
 } from '@linq-beauty/db';
 
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -85,10 +87,32 @@ const COUPONS: Array<{
   { id: '88888888-8888-8888-8888-888888888805', name: '誕生月特典',       code: 'BIRTHDAY',  discountType: 'percent', discountValue: 30,   description: '誕生月のご来店で 30% OFF',                       daysUntilExpiry: 30, maxUses: null },
 ];
 
-const CUSTOMERS: Array<{ id: string; name: string; lineUserId: string; phone: string; preferredLocationId: string }> = [
-  { id: '77777777-7777-7777-7777-777777777701', name: '佐藤 美咲',     lineUserId: 'U0000000000000000000000000000001', phone: '090-1111-1111', preferredLocationId: IKEBUKURO_ID },
-  { id: '77777777-7777-7777-7777-777777777702', name: '田中 真理',     lineUserId: 'U0000000000000000000000000000002', phone: '090-2222-2222', preferredLocationId: IKEBUKURO_ID },
-  { id: '77777777-7777-7777-7777-777777777703', name: '鈴木 さくら',   lineUserId: 'U0000000000000000000000000000003', phone: '090-3333-3333', preferredLocationId: AIOI_ID },
+// 美容業界共通プリセット タグ 14 種 (店舗固有名 hardcode せず、カテゴリ別色分け)
+// 参照: Projects/LinQ-for-Beauty/.claude/spec.md §「業界共通プリセット - タグカテゴリ」
+const TAGS: Array<{ id: string; category: 'treatment' | 'status' | 'segment'; name: string; color: string }> = [
+  // 施術タイプ (5、ピンク #f58fb8)
+  { id: '99999999-9999-9999-9999-999999999901', category: 'treatment', name: 'カット',         color: '#f58fb8' },
+  { id: '99999999-9999-9999-9999-999999999902', category: 'treatment', name: 'カラー',         color: '#f58fb8' },
+  { id: '99999999-9999-9999-9999-999999999903', category: 'treatment', name: 'パーマ',         color: '#f58fb8' },
+  { id: '99999999-9999-9999-9999-999999999904', category: 'treatment', name: 'トリートメント', color: '#f58fb8' },
+  { id: '99999999-9999-9999-9999-999999999905', category: 'treatment', name: 'ヘッドスパ',     color: '#f58fb8' },
+  // 顧客ステータス (5、パープル #a78bfa)
+  { id: '99999999-9999-9999-9999-999999999911', category: 'status',    name: '新規',           color: '#a78bfa' },
+  { id: '99999999-9999-9999-9999-999999999912', category: 'status',    name: 'リピート',       color: '#a78bfa' },
+  { id: '99999999-9999-9999-9999-999999999913', category: 'status',    name: 'VIP',            color: '#a78bfa' },
+  { id: '99999999-9999-9999-9999-999999999914', category: 'status',    name: '休眠',           color: '#a78bfa' },
+  { id: '99999999-9999-9999-9999-999999999915', category: 'status',    name: '失客',           color: '#a78bfa' },
+  // 客層 (4、グレー #94a3b8)
+  { id: '99999999-9999-9999-9999-999999999921', category: 'segment',   name: '学生',           color: '#94a3b8' },
+  { id: '99999999-9999-9999-9999-999999999922', category: 'segment',   name: '主婦',           color: '#94a3b8' },
+  { id: '99999999-9999-9999-9999-999999999923', category: 'segment',   name: 'ビジネス',       color: '#94a3b8' },
+  { id: '99999999-9999-9999-9999-999999999924', category: 'segment',   name: 'シニア',         color: '#94a3b8' },
+];
+
+const CUSTOMERS: Array<{ id: string; name: string; lineUserId: string; phone: string; preferredLocationId: string; tagIds: string[]; chatStatus: 'unread' | 'replied' | 'pending'; engagementTier: 'new' | 'active' | 'sleeping' | 'unknown'; score: number }> = [
+  { id: '77777777-7777-7777-7777-777777777701', name: '佐藤 美咲',     lineUserId: 'U0000000000000000000000000000001', phone: '090-1111-1111', preferredLocationId: IKEBUKURO_ID, tagIds: ['99999999-9999-9999-9999-999999999911', '99999999-9999-9999-9999-999999999902'], chatStatus: 'unread',  engagementTier: 'new',      score: 10 },
+  { id: '77777777-7777-7777-7777-777777777702', name: '田中 真理',     lineUserId: 'U0000000000000000000000000000002', phone: '090-2222-2222', preferredLocationId: IKEBUKURO_ID, tagIds: ['99999999-9999-9999-9999-999999999912', '99999999-9999-9999-9999-999999999903', '99999999-9999-9999-9999-999999999922'], chatStatus: 'replied', engagementTier: 'active',   score: 45 },
+  { id: '77777777-7777-7777-7777-777777777703', name: '鈴木 さくら',   lineUserId: 'U0000000000000000000000000000003', phone: '090-3333-3333', preferredLocationId: AIOI_ID,      tagIds: ['99999999-9999-9999-9999-999999999913', '99999999-9999-9999-9999-999999999905'], chatStatus: 'pending', engagementTier: 'active',   score: 80 },
 ];
 
 async function main() {
@@ -228,7 +252,19 @@ async function main() {
   }
   console.log(`  ✓ greetings (${GREETINGS.length})`);
 
-  // Customers (lastReadAt は null にリセット → seed 再実行で未読が復活する)
+  // Tags (業界共通プリセット 14 種)
+  for (const t of TAGS) {
+    await db
+      .insert(tags)
+      .values({ id: t.id, tenantId: TENANT_ID, category: t.category, name: t.name, color: t.color })
+      .onConflictDoUpdate({
+        target: tags.id,
+        set: { category: t.category, name: t.name, color: t.color },
+      });
+  }
+  console.log(`  ✓ tags (${TAGS.length})`);
+
+  // Customers (lastReadAt は null にリセット → seed 再実行で未読が復活する、Day 3 で chatStatus/engagementTier/score も投入)
   for (const c of CUSTOMERS) {
     await db
       .insert(customers)
@@ -239,14 +275,36 @@ async function main() {
         lineUserId: c.lineUserId,
         phone: c.phone,
         preferredLocationId: c.preferredLocationId,
+        chatStatus: c.chatStatus,
+        engagementTier: c.engagementTier,
+        score: c.score,
         lastReadAt: null,
       })
       .onConflictDoUpdate({
         target: customers.id,
-        set: { name: c.name, phone: c.phone, preferredLocationId: c.preferredLocationId, lastReadAt: null, updatedAt: new Date() },
+        set: {
+          name: c.name,
+          phone: c.phone,
+          preferredLocationId: c.preferredLocationId,
+          chatStatus: c.chatStatus,
+          engagementTier: c.engagementTier,
+          score: c.score,
+          lastReadAt: null,
+          updatedAt: new Date(),
+        },
       });
   }
   console.log(`  ✓ customers (${CUSTOMERS.length})`);
+
+  // Customer-Tag 関連 (デモタグ付与、既存を一旦消してから再投入)
+  for (const c of CUSTOMERS) {
+    await db.delete(customerTags).where(eq(customerTags.customerId, c.id));
+    for (const tagId of c.tagIds) {
+      await db.insert(customerTags).values({ customerId: c.id, tagId }).onConflictDoNothing();
+    }
+  }
+  const totalAssignments = CUSTOMERS.reduce((sum, c) => sum + c.tagIds.length, 0);
+  console.log(`  ✓ customer_tags (${totalAssignments} assignments)`);
 
   // Today's reservations (clear and re-insert)
   await db.delete(reservations).where(eq(reservations.locationId, IKEBUKURO_ID));

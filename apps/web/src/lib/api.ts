@@ -210,6 +210,71 @@ export const api = {
     remove: (id: string) =>
       req<{ ok: boolean }>(`/api/v1/templates/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
   },
+  customers: {
+    list: (opts?: { locationId?: string; search?: string; limit?: number; offset?: number }) => {
+      const qs = [
+        `tenantId=${TENANT_ID}`,
+        opts?.locationId ? `locationId=${opts.locationId}` : '',
+        opts?.search ? `search=${encodeURIComponent(opts.search)}` : '',
+        opts?.limit ? `limit=${opts.limit}` : '',
+        opts?.offset ? `offset=${opts.offset}` : '',
+      ]
+        .filter(Boolean)
+        .join('&');
+      return req<CustomerWithTags[]>(`/api/v1/customers?${qs}`);
+    },
+    get: (id: string) => req<CustomerWithTags>(`/api/v1/customers/${id}?tenantId=${TENANT_ID}`),
+    listTags: (id: string) =>
+      req<Tag[]>(`/api/v1/customers/${id}/tags?tenantId=${TENANT_ID}`),
+    update: (
+      id: string,
+      body: {
+        name?: string;
+        phone?: string;
+        email?: string;
+        birthday?: string | null;
+        notes?: string;
+        preferredLocationId?: string | null;
+        score?: number;
+        chatStatus?: string;
+        engagementTier?: string;
+        acquisitionSource?: string;
+        customFields?: Record<string, unknown>;
+      },
+    ) =>
+      req<Customer>(`/api/v1/customers/${id}?tenantId=${TENANT_ID}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+  },
+  tags: {
+    list: (category?: string) => {
+      const cat = category ? `&category=${category}` : '';
+      return req<Tag[]>(`/api/v1/tags?tenantId=${TENANT_ID}${cat}`);
+    },
+    create: (body: { name: string; color?: string; category?: string }) =>
+      req<Tag>(`/api/v1/tags?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: { name?: string; color?: string; category?: string }) =>
+      req<{ ok: boolean }>(`/api/v1/tags/${id}?tenantId=${TENANT_ID}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string) =>
+      req<{ ok: boolean }>(`/api/v1/tags/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
+    assign: (tagId: string, customerId: string) =>
+      req<{ ok: boolean }>(
+        `/api/v1/tags/${tagId}/assign/${customerId}?tenantId=${TENANT_ID}`,
+        { method: 'POST' },
+      ),
+    unassign: (tagId: string, customerId: string) =>
+      req<{ ok: boolean }>(
+        `/api/v1/tags/${tagId}/assign/${customerId}?tenantId=${TENANT_ID}`,
+        { method: 'DELETE' },
+      ),
+  },
   coupons: {
     list: (locationId?: string) => {
       const loc = locationId ? `&locationId=${locationId}` : '';
@@ -319,6 +384,47 @@ export type MessageTemplate = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type Customer = {
+  id: string;
+  tenantId: string;
+  lineAccountId: string | null;
+  lineUserId: string | null;
+  name: string | null;
+  displayName: string | null;
+  pictureUrl: string | null;
+  statusMessage: string | null;
+  language: string | null;
+  phone: string | null;
+  email: string | null;
+  birthday: string | null;
+  notes: string | null;
+  preferredLocationId: string | null;
+  isFollowing: boolean;
+  score: number;
+  customFields: Record<string, unknown>;
+  acquisitionSource: string | null;
+  chatStatus: string;
+  engagementTier: string;
+  followedAt: string | null;
+  unfollowedAt: string | null;
+  profileSyncedAt: string | null;
+  lastInteractionAt: string | null;
+  lastReadAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Tag = {
+  id: string;
+  tenantId: string;
+  category: string | null;
+  name: string;
+  color: string | null;
+  createdAt: string;
+};
+
+export type CustomerWithTags = Customer & { tags: Tag[] };
 
 export type Coupon = {
   id: string;
