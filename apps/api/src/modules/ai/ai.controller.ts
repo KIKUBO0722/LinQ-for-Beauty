@@ -2,7 +2,9 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestj
 import { AiConfigsService } from './ai-configs.service';
 import { AiKnowledgeService } from './ai-knowledge.service';
 import { AiConversationsService } from './ai-conversations.service';
-import { CreateKnowledgeDto, UpdateAiConfigDto, UpdateKnowledgeDto } from './dto/ai.dto';
+import { AiAutoReplyService } from './ai-auto-reply.service';
+import { AiGenerationService } from './ai-generation.service';
+import { CreateKnowledgeDto, UpdateAiConfigDto, UpdateKnowledgeDto, GenerateDto, TestReplyDto } from './dto/ai.dto';
 
 @Controller('api/v1/ai')
 export class AiController {
@@ -10,6 +12,8 @@ export class AiController {
     private readonly configs: AiConfigsService,
     private readonly knowledge: AiKnowledgeService,
     private readonly conversations: AiConversationsService,
+    private readonly autoReply: AiAutoReplyService,
+    private readonly generation: AiGenerationService,
   ) {}
 
   // ====== AI 設定 ======
@@ -64,5 +68,21 @@ export class AiController {
     @Param('customerId') customerId: string,
   ) {
     return this.conversations.getForCustomer(tenantId, customerId);
+  }
+
+  // ====== Day 10: 文章生成 + 応答プレビュー ======
+
+  @Post('generate')
+  async generate(@Query('tenantId') tenantId: string, @Body() body: GenerateDto) {
+    return this.generation.generate(tenantId, {
+      purpose: body.purpose,
+      tone: body.tone,
+      extraContext: body.extraContext,
+    });
+  }
+
+  @Post('test-reply')
+  async testReply(@Query('tenantId') tenantId: string, @Body() body: TestReplyDto) {
+    return this.autoReply.replyTo(tenantId, body.customerId, body.userText);
   }
 }

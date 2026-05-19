@@ -1,16 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bot, MessageSquare, BookOpen, Plus, Trash2, Save, X, Tag as TagIcon, Loader2, Check } from 'lucide-react';
+import { Bot, MessageSquare, BookOpen, Plus, Trash2, Save, X, Loader2, Wand2, Sparkles, Hand, Copy } from 'lucide-react';
 import {
   api,
   KNOWLEDGE_CATEGORIES,
+  AI_PURPOSE_LABELS,
+  AI_TONE_LABELS,
   TENANT_ID,
   type AiConfig,
   type AiKnowledge,
+  type AiKeywordRule,
+  type AiPurpose,
+  type AiTone,
+  type AutoReplyResult,
 } from '@/lib/api';
 
-type Tab = 'config' | 'knowledge';
+type Tab = 'config' | 'knowledge' | 'keyword' | 'generation' | 'greeting';
 
 export default function AiPage() {
   const [tab, setTab] = useState<Tab>('config');
@@ -51,9 +57,12 @@ export default function AiPage() {
       )}
 
       {/* タブ */}
-      <div className="flex gap-1 border-b border-slate-200">
+      <div className="flex flex-wrap gap-1 border-b border-slate-200">
         <TabButton active={tab === 'config'} onClick={() => setTab('config')} Icon={MessageSquare} label="応答設定" />
         <TabButton active={tab === 'knowledge'} onClick={() => setTab('knowledge')} Icon={BookOpen} label="ナレッジ" />
+        <TabButton active={tab === 'keyword'} onClick={() => setTab('keyword')} Icon={Sparkles} label="キーワード応答" />
+        <TabButton active={tab === 'generation'} onClick={() => setTab('generation')} Icon={Wand2} label="文章生成" />
+        <TabButton active={tab === 'greeting'} onClick={() => setTab('greeting')} Icon={Hand} label="あいさつ" />
         <span className="ml-auto self-center text-xs text-slate-400">
           {config?.autoReplyEnabled ? '🟢 自動応答 ON' : '⚪ 自動応答 OFF'}
         </span>
@@ -64,6 +73,15 @@ export default function AiPage() {
       )}
       {tab === 'knowledge' && (
         <KnowledgeTab knowledge={knowledge} onChanged={refresh} setError={setError} />
+      )}
+      {tab === 'keyword' && config && (
+        <KeywordTab config={config} onSaved={refresh} setError={setError} />
+      )}
+      {tab === 'generation' && (
+        <GenerationTab setError={setError} />
+      )}
+      {tab === 'greeting' && config && (
+        <GreetingTab config={config} onSaved={refresh} setError={setError} />
       )}
     </div>
   );
@@ -109,7 +127,6 @@ function ConfigTab({
 }) {
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(config.autoReplyEnabled);
   const [systemPrompt, setSystemPrompt] = useState(config.systemPrompt ?? '');
-  const [welcomeMessage, setWelcomeMessage] = useState(config.welcomeMessage ?? '');
   const [handoffInput, setHandoffInput] = useState('');
   const [handoffKeywords, setHandoffKeywords] = useState<string[]>(config.handoffKeywords ?? []);
   const [temperature, setTemperature] = useState(config.temperature);
@@ -131,7 +148,6 @@ function ConfigTab({
       await api.ai.updateConfig({
         autoReplyEnabled,
         systemPrompt,
-        welcomeMessage,
         handoffKeywords,
         temperature,
       });
@@ -180,21 +196,6 @@ function ConfigTab({
           value={systemPrompt}
           onChange={(e) => setSystemPrompt(e.target.value)}
           rows={8}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
-        />
-      </div>
-
-      {/* 友だち追加時メッセージ */}
-      <div className="space-y-1">
-        <label className="text-sm font-medium text-slate-700">友だち追加時の AI 案内 (任意)</label>
-        <p className="text-xs text-slate-500">
-          通常のあいさつメッセージとは別に、AI 自動応答が ON の時に AI 経由で送る初回メッセージ
-        </p>
-        <textarea
-          value={welcomeMessage}
-          onChange={(e) => setWelcomeMessage(e.target.value)}
-          placeholder="例: ご質問は LINE でお気軽にどうぞ。営業時間外は AI が一次対応し、スタッフからも翌営業日にご連絡いたします。"
-          rows={3}
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
         />
       </div>
@@ -524,6 +525,328 @@ function KnowledgeTab({
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ====== キーワード応答タブ ======
+
+function KeywordTab({
+  config,
+  onSaved,
+  setError,
+}: {
+  config: AiConfig;
+  onSaved: () => void;
+  setError: (e: string | null) => void;
+}) {
+  const [rules, setRules] = useState<AiKeywordRule[]>(config.keywordRules ?? []);
+  const [busy, setBusy] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+
+  const addRule = () => {
+    setRules([...rules, { keyword: '', response: '', matchType: 'contains' }]);
+  };
+
+  const updateRule = (idx: number, patch: Partial<AiKeywordRule>) => {
+    setRules(rules.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  };
+
+  const removeRule = (idx: number) => {
+    if (!confirm('このルールを削除しますか?')) return;
+    setRules(rules.filter((_, i) => i !== idx));
+  };
+
+  const save = async () => {
+    const cleaned = rules.filter((r) => r.keyword.trim() && r.response.trim());
+    setBusy(true);
+    setError(null);
+    try {
+      await api.ai.updateConfig({ keywordRules: cleaned });
+      setSavedAt(new Date().toLocaleTimeString('ja-JP'));
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div>
+        <h3 className="text-base font-semibold text-slate-900">キーワード応答</h3>
+        <p className="mt-1 text-xs text-slate-500">
+          顧客メッセージに特定の語が含まれていたら、AI ではなく固定文で即返信。引き継ぎキーワードよりも優先度は低い (引き継ぎが優先)。
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {rules.length === 0 && (
+          <div className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-400">
+            まだルールがありません。「+ ルール追加」から作成
+          </div>
+        )}
+        {rules.map((rule, idx) => (
+          <div key={idx} className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="grid grid-cols-[1fr_140px_36px] items-center gap-2">
+              <input
+                type="text"
+                value={rule.keyword}
+                onChange={(e) => updateRule(idx, { keyword: e.target.value })}
+                placeholder="キーワード (例: 営業時間 / 駐車場 / 料金)"
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
+              />
+              <select
+                value={rule.matchType ?? 'contains'}
+                onChange={(e) => updateRule(idx, { matchType: e.target.value as 'contains' | 'exact' | 'startsWith' })}
+                className="rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
+              >
+                <option value="contains">含む</option>
+                <option value="exact">完全一致</option>
+                <option value="startsWith">で始まる</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => removeRule(idx)}
+                className="rounded-md p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
+                aria-label="削除"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+            <textarea
+              value={rule.response}
+              onChange={(e) => updateRule(idx, { response: e.target.value })}
+              placeholder="このキーワードを検知したときの返信文"
+              rows={2}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
+            />
+          </div>
+        ))}
+
+        <button
+          type="button"
+          onClick={addRule}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-600 hover:border-purple-300 hover:bg-purple-50"
+        >
+          <Plus className="h-4 w-4" />
+          ルール追加
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+        <div className="text-xs text-slate-500">
+          {savedAt && <span className="text-emerald-600">✓ 保存しました ({savedAt})</span>}
+        </div>
+        <button
+          type="button"
+          onClick={save}
+          disabled={busy}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-purple-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-purple-600 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          保存
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ====== 文章生成タブ ======
+
+function GenerationTab({ setError }: { setError: (e: string | null) => void }) {
+  const [purpose, setPurpose] = useState<AiPurpose>('broadcast');
+  const [tone, setTone] = useState<AiTone>('friendly');
+  const [extraContext, setExtraContext] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[] | null>(null);
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+
+  const generate = async () => {
+    setBusy(true);
+    setError(null);
+    setSuggestions(null);
+    try {
+      const { suggestions } = await api.ai.generate({
+        purpose,
+        tone,
+        extraContext: extraContext.trim() || undefined,
+      });
+      setSuggestions(suggestions);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string, idx: number) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 2000);
+    } catch (e) {
+      setError('クリップボードへのコピーに失敗しました');
+    }
+  };
+
+  return (
+    <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div>
+        <h3 className="text-base font-semibold text-slate-900">文章生成</h3>
+        <p className="mt-1 text-xs text-slate-500">
+          用途と語り口を選んで、AI に 3 案を出してもらう。気に入った案はコピーして 配信 / クーポン / カウンセリングで使用。
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-slate-700">用途</label>
+          <select
+            value={purpose}
+            onChange={(e) => setPurpose(e.target.value as AiPurpose)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
+          >
+            {Object.entries(AI_PURPOSE_LABELS).map(([k, label]) => (
+              <option key={k} value={k}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm font-medium text-slate-700">語り口</label>
+          <select
+            value={tone}
+            onChange={(e) => setTone(e.target.value as AiTone)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
+          >
+            {Object.entries(AI_TONE_LABELS).map(([k, label]) => (
+              <option key={k} value={k}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-slate-700">追加要望 (任意)</label>
+        <textarea
+          value={extraContext}
+          onChange={(e) => setExtraContext(e.target.value)}
+          placeholder="例: 春の新メニュー / 母の日キャンペーン / カラー後 6 週間経過した顧客向け"
+          rows={2}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
+        />
+      </div>
+
+      <button
+        type="button"
+        onClick={generate}
+        disabled={busy}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-purple-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-purple-600 disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+        AI で 3 案 生成
+      </button>
+
+      {suggestions && (
+        <div className="space-y-3 border-t border-slate-100 pt-4">
+          <div className="text-sm font-medium text-slate-700">AI 提案 3 案</div>
+          {suggestions.map((s, i) => (
+            <div key={i} className="rounded-lg border border-purple-100 bg-purple-50/50 p-3">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-xs font-medium text-purple-700">案 {i + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(s, i)}
+                  className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-white px-2 py-1 text-[10px] text-purple-700 hover:bg-purple-100"
+                >
+                  <Copy className="h-3 w-3" />
+                  {copiedIdx === i ? 'コピー済' : 'コピー'}
+                </button>
+              </div>
+              <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{s}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ====== あいさつタブ ======
+
+function GreetingTab({
+  config,
+  onSaved,
+  setError,
+}: {
+  config: AiConfig;
+  onSaved: () => void;
+  setError: (e: string | null) => void;
+}) {
+  const [welcomeMessage, setWelcomeMessage] = useState(config.welcomeMessage ?? '');
+  const [busy, setBusy] = useState(false);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.ai.updateConfig({ welcomeMessage });
+      setSavedAt(new Date().toLocaleTimeString('ja-JP'));
+      onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div>
+        <h3 className="text-base font-semibold text-slate-900">あいさつ (AI 経由の初回メッセージ)</h3>
+        <p className="mt-1 text-xs text-slate-500">
+          自動応答 ON 時、お客さんが LINE で友だち追加した直後に AI 経由で送る初回案内文。通常のあいさつ
+          (友だち追加時のあいさつメッセージ) は「配信」タブの「あいさつ」で別に設定可能。
+        </p>
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-slate-700">AI 案内文</label>
+        <textarea
+          value={welcomeMessage}
+          onChange={(e) => setWelcomeMessage(e.target.value)}
+          placeholder="例: ご質問は LINE でお気軽にどうぞ。営業時間外は AI が一次対応し、スタッフからも翌営業日にご連絡いたします。"
+          rows={6}
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
+        />
+        <div className="text-right text-xs text-slate-500">{welcomeMessage.length} 文字</div>
+      </div>
+
+      <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+        <div className="text-xs text-slate-500">
+          {savedAt && <span className="text-emerald-600">✓ 保存しました ({savedAt})</span>}
+          {!config.autoReplyEnabled && (
+            <span className="ml-3 text-amber-600">
+              ⚠ 自動応答 OFF のため、この案内文は現在送信されません
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={save}
+          disabled={busy}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-purple-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-purple-600 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          保存
+        </button>
       </div>
     </div>
   );

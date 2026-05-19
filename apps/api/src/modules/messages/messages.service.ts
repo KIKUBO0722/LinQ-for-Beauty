@@ -14,6 +14,7 @@ import { messages, customers, lineAccounts } from '@linq-beauty/db';
 import { DB } from '../../database/database.module';
 import { LineService, type LineCredentials, type LineMessage } from '../line/line.service';
 import type { MessagePayload } from './dto/messages.dto';
+import { AiAutoReplyService } from '../ai/ai-auto-reply.service';
 
 type Db = NodePgDatabase<typeof schema>;
 
@@ -24,6 +25,7 @@ export class MessagesService {
   constructor(
     @Inject(DB) private readonly db: Db,
     private readonly lineService: LineService,
+    private readonly aiAutoReply: AiAutoReplyService,
   ) {}
 
   private async getTenantLineAccount(tenantId: string) {
@@ -256,6 +258,82 @@ export class MessagesService {
       .returning();
 
     return msg;
+  }
+
+  /**
+   * Day 10/22: LINE webhook (Day 18 結線) と「inbound テスト」の共通入口。
+   * inbound を messages 表に記録 → autoReplyEnabled なら AiAutoReplyService.replyTo → 応答送信 + outbound 記録
+   * を一気通貫。webhook 結線前は管理画面の「応答プレビュー」から直接 ai/test-reply を叩く運用。
+   */
+  async handleInboundMessage(
+    tenantId: string,
+    customerId: string,
+    userText: string,
+  ): Promise<{
+    inboundId: string;
+    reply: { responseText: string; source: 'handoff' | 'keyword' | 'ai' | 'disabled'; needsHandoff: boolean };
+    outboundId: string | null;
+  }> {
+    const [customer] = await this.db
+      .select()
+      .from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, tenantId)))
+      .limit(1);
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const account = await this.getTenantLineAccount(tenantId).catch(() => null);
+    const lineAccountId = account?.id ?? customer.lineAccountId;
+
+    // LINE アカウント未紐付け時は messages 表に記録せず、AI 応答テキストだけ返す (テスト用途)
+    if (!lineAccountId) {
+      const replyOnly = await this.aiAutoReply.replyTo(tenantId, customerId, userText);
+      return { inboundId: '', reply: replyOnly, outboundId: null };
+    }
+
+    // inbound 記録
+    const [inbound] = await this.db
+      .insert(messages)
+      .values({
+        tenantId,
+        locationId: customer.preferredLocationId,
+        lineAccountId,
+        customerId,
+        direction: 'inbound',
+        messageType: 'text',
+        content: { type: 'text', text: userText } as Record<string, unknown>,
+        sendType: null,
+        status: 'received',
+        sentAt: new Date(),
+      })
+      .returning();
+
+    // AI 応答判定
+    const reply = await this.aiAutoReply.replyTo(tenantId, customerId, userText);
+
+    let outboundId: string | null = null;
+    if (reply.responseText && reply.source !== 'disabled') {
+      try {
+        const outbound = await this.sendMessageToCustomer(tenantId, customerId, {
+          type: 'text',
+          text: reply.responseText,
+        });
+        outboundId = outbound.id;
+      } catch (e) {
+        this.logger.warn(
+          `Auto-reply send failed for customer=${customerId}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+
+      // 引き継ぎ判定なら chatStatus = 'pending' に上書き
+      if (reply.needsHandoff) {
+        await this.db
+          .update(customers)
+          .set({ chatStatus: 'pending', updatedAt: new Date() })
+          .where(eq(customers.id, customerId));
+      }
+    }
+
+    return { inboundId: inbound.id, reply, outboundId };
   }
 
   async testSend(tenantId: string, customerIds: string[], text: string) {

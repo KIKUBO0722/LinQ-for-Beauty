@@ -460,6 +460,16 @@ export const api = {
       req<AiConversationWithCustomer[]>(`/api/v1/ai/conversations?tenantId=${TENANT_ID}`),
     getConversation: (customerId: string) =>
       req<AiConversation | null>(`/api/v1/ai/conversations/${customerId}?tenantId=${TENANT_ID}`),
+    generate: (body: { purpose: AiPurpose; tone: AiTone; extraContext?: string }) =>
+      req<{ suggestions: string[] }>(`/api/v1/ai/generate?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    testReply: (customerId: string, userText: string) =>
+      req<AutoReplyResult>(`/api/v1/ai/test-reply?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        body: JSON.stringify({ customerId, userText }),
+      }),
   },
 };
 
@@ -566,6 +576,28 @@ export type AiConversation = {
 export type AiConversationWithCustomer = AiConversation & {
   customerName: string | null;
   customerDisplayName: string | null;
+};
+
+export type AiPurpose = 'broadcast' | 'coupon' | 'seasonal' | 'counseling';
+export type AiTone = 'formal' | 'friendly' | 'short';
+
+export type AutoReplyResult = {
+  responseText: string;
+  source: 'handoff' | 'keyword' | 'ai' | 'disabled';
+  needsHandoff: boolean;
+};
+
+export const AI_PURPOSE_LABELS: Record<AiPurpose, string> = {
+  broadcast: '一斉配信メッセージ',
+  coupon: 'クーポン案内文',
+  seasonal: '季節キャンペーン文',
+  counseling: 'カウンセリング項目案',
+};
+
+export const AI_TONE_LABELS: Record<AiTone, string> = {
+  formal: '丁寧 (敬語ベース)',
+  friendly: '親しみ (フレンドリー)',
+  short: '短文 (簡潔)',
 };
 
 export const KNOWLEDGE_CATEGORIES: { id: string; label: string }[] = [

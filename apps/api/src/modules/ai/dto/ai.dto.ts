@@ -24,3 +24,14 @@ export class UpdateKnowledgeDto {
   tags?: string[];
   isActive?: boolean;
 }
+
+export class GenerateDto {
+  purpose!: 'broadcast' | 'coupon' | 'seasonal' | 'counseling';
+  tone!: 'formal' | 'friendly' | 'short';
+  extraContext?: string;
+}
+
+export class TestReplyDto {
+  customerId!: string;
+  userText!: string;
+}
