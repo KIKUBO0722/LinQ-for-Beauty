@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, jsonb, timestamp, integer } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants';
 import { locations } from './locations';
 
@@ -19,3 +19,17 @@ export const segments = pgTable('segments', {
 
 export type Segment = typeof segments.$inferSelect;
 export type NewSegment = typeof segments.$inferInsert;
+
+export const segmentBroadcasts = pgTable('segment_broadcasts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  segmentId: uuid('segment_id')
+    .notNull()
+    .references(() => segments.id, { onDelete: 'cascade' }),
+  message: text('message').notNull(),
+  sentAt: timestamp('sent_at', { withTimezone: true }).defaultNow().notNull(),
+  recipientCount: integer('recipient_count').notNull().default(0),
+  sentCount: integer('sent_count').notNull().default(0),
+});
+
+export type SegmentBroadcast = typeof segmentBroadcasts.$inferSelect;
+export type NewSegmentBroadcast = typeof segmentBroadcasts.$inferInsert;

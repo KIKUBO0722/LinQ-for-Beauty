@@ -1,9 +1,8 @@
 import { Module } from '@nestjs/common';
-
-// Phase 2: implement ClaudeProvider here
+import { AnthropicService } from './anthropic.service';
 
 @Module({
-  providers: [],
-  exports: [],
+  providers: [AnthropicService],
+  exports: [AnthropicService],
 })
 export class AiModule {}

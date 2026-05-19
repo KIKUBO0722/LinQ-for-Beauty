@@ -419,6 +419,19 @@ export const api = {
       req<{ ok: boolean }>(`/api/v1/segments/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
     previewCount: (id: string) =>
       req<{ count: number }>(`/api/v1/segments/${id}/preview-count?tenantId=${TENANT_ID}`),
+    preview: (id: string) =>
+      req<SegmentPreview>(`/api/v1/segments/${id}/preview?tenantId=${TENANT_ID}`),
+    broadcast: (id: string, message: string) =>
+      req<SegmentBroadcastResult>(`/api/v1/segments/${id}/broadcast?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        body: JSON.stringify({ message }),
+      }),
+    suggest: (id: string) =>
+      req<{ suggestions: string[] }>(`/api/v1/segments/${id}/suggest?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+      }),
+    history: (id: string) =>
+      req<SegmentBroadcastHistory[]>(`/api/v1/segments/${id}/history?tenantId=${TENANT_ID}`),
   },
 };
 
@@ -433,6 +446,47 @@ export type Segment = {
   excludeTagIds: string[];
   createdAt: string;
   updatedAt: string;
+};
+
+export type SegmentTierBreakdown = {
+  active: number;
+  warm: number;
+  cold: number;
+  dormant: number;
+  unknown: number;
+};
+
+export type SegmentCostEstimate = {
+  totalRecipients: number;
+  costYen: number;
+  dormantCount: number;
+  costExcludingDormantYen: number;
+  potentialSavingsYen: number;
+  pricePerMessage: number;
+};
+
+export type SegmentPreview = {
+  count: number;
+  tierBreakdown: SegmentTierBreakdown;
+  costEstimate: SegmentCostEstimate;
+  sampleCustomers: { id: string; name: string }[];
+};
+
+export type SegmentBroadcastResult = {
+  historyId: string;
+  broadcastId: string;
+  recipientCount: number;
+  sendableCount: number;
+  sentCount: number;
+};
+
+export type SegmentBroadcastHistory = {
+  id: string;
+  segmentId: string;
+  message: string;
+  sentAt: string;
+  recipientCount: number;
+  sentCount: number;
 };
 
 export type Broadcast = {

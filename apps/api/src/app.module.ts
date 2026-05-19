@@ -21,6 +21,7 @@ import { CouponsModule } from './modules/coupons/coupons.module';
 import { TagsModule } from './modules/tags/tags.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { SegmentsModule } from './modules/segments/segments.module';
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { SegmentsModule } from './modules/segments/segments.module';
     TagsModule,
     CustomersModule,
     SegmentsModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

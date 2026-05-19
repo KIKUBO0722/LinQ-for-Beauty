@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Layers, Plus, Trash2, Users, Save, X } from 'lucide-react';
+import { Layers, Plus, Trash2, Users, Save, X, Send, Sparkles, Loader2, Check } from 'lucide-react';
 import {
   api,
   type Segment,
+  type SegmentPreview,
   type Tag,
   type Location,
   TENANT_ID,
@@ -42,9 +43,11 @@ export default function SegmentsPage() {
   const [tagsAll, setTagsAll] = useState<Tag[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [edit, setEdit] = useState<EditState | null>(null);
-  const [previewCount, setPreviewCount] = useState<number | null>(null);
+  const [preview, setPreview] = useState<SegmentPreview | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [broadcastModal, setBroadcastModal] = useState<{ message: string; suggestions: string[] | null; suggestLoading: boolean; sendResult: string | null } | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -85,8 +88,20 @@ export default function SegmentsPage() {
 
   const openNew = () => {
     setEdit({ ...EMPTY_EDIT });
-    setPreviewCount(null);
+    setPreview(null);
   };
+
+  const loadPreview = useCallback(async (id: string) => {
+    setPreviewLoading(true);
+    try {
+      const p = await api.segments.preview(id);
+      setPreview(p);
+    } catch (e) {
+      setPreview(null);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, []);
 
   const openExisting = async (seg: Segment) => {
     setEdit({
@@ -98,18 +113,65 @@ export default function SegmentsPage() {
       matchType: (seg.matchType ?? 'any') as 'any' | 'all',
       excludeTagIds: [...seg.excludeTagIds],
     });
-    setPreviewCount(null);
-    try {
-      const { count } = await api.segments.previewCount(seg.id);
-      setPreviewCount(count);
-    } catch (e) {
-      setPreviewCount(null);
-    }
+    setPreview(null);
+    void loadPreview(seg.id);
   };
 
   const closeEdit = () => {
     setEdit(null);
-    setPreviewCount(null);
+    setPreview(null);
+  };
+
+  const openBroadcastModal = () => {
+    setBroadcastModal({ message: '', suggestions: null, suggestLoading: false, sendResult: null });
+  };
+
+  const closeBroadcastModal = () => setBroadcastModal(null);
+
+  const requestSuggestions = async () => {
+    if (!edit?.id || !broadcastModal) return;
+    setBroadcastModal({ ...broadcastModal, suggestLoading: true });
+    try {
+      const { suggestions } = await api.segments.suggest(edit.id);
+      setBroadcastModal((prev) => prev && { ...prev, suggestions, suggestLoading: false });
+    } catch (e) {
+      setBroadcastModal((prev) =>
+        prev && {
+          ...prev,
+          suggestLoading: false,
+          sendResult: e instanceof Error ? `AI 候補取得エラー: ${e.message}` : 'AI 候補取得エラー',
+        },
+      );
+    }
+  };
+
+  const useSuggestion = (text: string) => {
+    if (!broadcastModal) return;
+    setBroadcastModal({ ...broadcastModal, message: text });
+  };
+
+  const sendBroadcast = async () => {
+    if (!edit?.id || !broadcastModal) return;
+    if (!broadcastModal.message.trim()) {
+      setBroadcastModal({ ...broadcastModal, sendResult: '本文を入力してください' });
+      return;
+    }
+    if (!confirm(`このセグメント (${preview?.count ?? '?'} 名) に配信を実行しますか?`)) return;
+
+    setBroadcastModal({ ...broadcastModal, sendResult: '送信中…' });
+    try {
+      const result = await api.segments.broadcast(edit.id, broadcastModal.message);
+      setBroadcastModal({
+        ...broadcastModal,
+        sendResult: `配信完了: 該当 ${result.recipientCount} 名 / 送信可能 ${result.sendableCount} 名 / 実送信 ${result.sentCount} 名`,
+      });
+      if (edit.id) void loadPreview(edit.id);
+    } catch (e) {
+      setBroadcastModal({
+        ...broadcastModal,
+        sendResult: e instanceof Error ? `エラー: ${e.message}` : 'エラー',
+      });
+    }
   };
 
   const toggleInclude = (tagId: string) => {
@@ -426,15 +488,70 @@ export default function SegmentsPage() {
                 </div>
               </div>
 
-              {edit.id && previewCount !== null && (
-                <div className="rounded-lg border border-pink-100 bg-pink-50/60 px-4 py-3">
-                  <div className="flex items-center gap-2 text-sm text-pink-700">
-                    <Users className="h-4 w-4" />
-                    現在の条件で該当する顧客: <strong>{previewCount} 名</strong>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">
-                    変更を保存後に再表示。詳細な内訳・配信コスト見積は次バージョン (Day 8) で追加予定。
-                  </p>
+              {edit.id && (
+                <div className="space-y-3">
+                  {previewLoading && (
+                    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                      <Loader2 className="h-4 w-4 animate-spin" /> 該当人数を集計中…
+                    </div>
+                  )}
+                  {!previewLoading && preview && (
+                    <div className="space-y-3 rounded-lg border border-pink-100 bg-pink-50/60 p-4">
+                      <div className="flex items-center gap-2 text-sm text-pink-700">
+                        <Users className="h-4 w-4" />
+                        現在の条件で該当する顧客: <strong>{preview.count} 名</strong>
+                      </div>
+
+                      {preview.count > 0 && (
+                        <>
+                          <TierBar tierBreakdown={preview.tierBreakdown} total={preview.count} />
+
+                          <div className="rounded-md border border-slate-200 bg-white p-3 text-xs">
+                            <div className="mb-1.5 font-medium text-slate-700">
+                              配信費用見積 (LINE Messaging API ¥{preview.costEstimate.pricePerMessage}/通)
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-slate-600">
+                              <span>全員に配信</span>
+                              <span className="text-right tabular-nums">
+                                ¥{preview.costEstimate.costYen.toLocaleString()}
+                              </span>
+                              {preview.costEstimate.dormantCount > 0 && (
+                                <>
+                                  <span>休眠顧客 ({preview.costEstimate.dormantCount} 名) 除外</span>
+                                  <span className="text-right tabular-nums text-emerald-600">
+                                    ¥{preview.costEstimate.costExcludingDormantYen.toLocaleString()}
+                                    <span className="ml-1 text-[10px] text-emerald-700">
+                                      (-¥{preview.costEstimate.potentialSavingsYen.toLocaleString()})
+                                    </span>
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          {preview.sampleCustomers.length > 0 && (
+                            <div className="text-xs text-slate-500">
+                              該当例:{' '}
+                              {preview.sampleCustomers.map((c) => c.name).join(' / ')}
+                              {preview.count > preview.sampleCustomers.length &&
+                                ` ほか ${preview.count - preview.sampleCustomers.length} 名`}
+                            </div>
+                          )}
+
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={openBroadcastModal}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-pink-500 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-600"
+                            >
+                              <Send className="h-3.5 w-3.5" />
+                              この条件で配信
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -474,6 +591,160 @@ export default function SegmentsPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* 配信モーダル */}
+      {broadcastModal && edit?.id && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
+          onClick={closeBroadcastModal}
+        >
+          <div
+            className="w-full max-w-2xl rounded-xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                <Send className="h-4 w-4 text-pink-500" />
+                セグメント配信 ({preview?.count ?? '?'} 名対象)
+              </h3>
+              <button
+                type="button"
+                onClick={closeBroadcastModal}
+                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                aria-label="閉じる"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 p-5">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-slate-700">配信文</label>
+                <button
+                  type="button"
+                  onClick={requestSuggestions}
+                  disabled={broadcastModal.suggestLoading}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+                >
+                  {broadcastModal.suggestLoading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
+                  AI に配信文案を出してもらう
+                </button>
+              </div>
+
+              {broadcastModal.suggestions && (
+                <div className="space-y-2 rounded-lg border border-purple-100 bg-purple-50/50 p-3">
+                  <div className="text-xs font-medium text-purple-700">
+                    AI 提案 3 案 — クリックで本文に挿入
+                  </div>
+                  {broadcastModal.suggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => useSuggestion(s)}
+                      className="block w-full rounded-md border border-purple-100 bg-white p-3 text-left text-xs text-slate-700 hover:border-purple-300 hover:bg-purple-50"
+                    >
+                      <div className="mb-1 text-[10px] font-medium text-purple-600">案 {i + 1}</div>
+                      <div className="whitespace-pre-wrap leading-relaxed">{s}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <textarea
+                value={broadcastModal.message}
+                onChange={(e) =>
+                  setBroadcastModal({ ...broadcastModal, message: e.target.value })
+                }
+                placeholder="ここに配信本文を入力 (LINE のテキストメッセージとして送信)"
+                rows={6}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none focus:ring-2 focus:ring-pink-100"
+              />
+              <div className="text-right text-xs text-slate-500">
+                {broadcastModal.message.length} 文字
+              </div>
+
+              {broadcastModal.sendResult && (
+                <div
+                  className={`rounded-md px-3 py-2 text-xs ${
+                    broadcastModal.sendResult.startsWith('配信完了')
+                      ? 'border border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : broadcastModal.sendResult.startsWith('送信中')
+                        ? 'border border-slate-200 bg-slate-50 text-slate-600'
+                        : 'border border-rose-200 bg-rose-50 text-rose-700'
+                  }`}
+                >
+                  {broadcastModal.sendResult.startsWith('配信完了') && (
+                    <Check className="mr-1 inline h-3.5 w-3.5" />
+                  )}
+                  {broadcastModal.sendResult}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={closeBroadcastModal}
+                  className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  閉じる
+                </button>
+                <button
+                  type="button"
+                  onClick={sendBroadcast}
+                  disabled={!broadcastModal.message.trim() || broadcastModal.sendResult === '送信中…'}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-pink-500 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-600 disabled:opacity-50"
+                >
+                  <Send className="h-4 w-4" />
+                  送信する
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TierBar({
+  tierBreakdown,
+  total,
+}: {
+  tierBreakdown: { active: number; warm: number; cold: number; dormant: number; unknown: number };
+  total: number;
+}) {
+  if (total === 0) return null;
+  const items = [
+    { key: 'active', label: '活発', count: tierBreakdown.active, color: 'bg-emerald-400' },
+    { key: 'warm', label: '関心あり', count: tierBreakdown.warm, color: 'bg-amber-400' },
+    { key: 'cold', label: '冷ややか', count: tierBreakdown.cold, color: 'bg-orange-400' },
+    { key: 'dormant', label: '休眠', count: tierBreakdown.dormant, color: 'bg-slate-400' },
+    { key: 'unknown', label: '未分類', count: tierBreakdown.unknown, color: 'bg-slate-300' },
+  ];
+  return (
+    <div className="space-y-1.5">
+      <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
+        {items.map((it) => {
+          const pct = (it.count / total) * 100;
+          if (pct === 0) return null;
+          return <div key={it.key} className={it.color} style={{ width: `${pct}%` }} />;
+        })}
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-600">
+        {items.map(
+          (it) =>
+            it.count > 0 && (
+              <span key={it.key} className="inline-flex items-center gap-1">
+                <span className={`inline-block h-2 w-2 rounded-full ${it.color}`} />
+                {it.label} {it.count}
+              </span>
+            ),
+        )}
       </div>
     </div>
   );

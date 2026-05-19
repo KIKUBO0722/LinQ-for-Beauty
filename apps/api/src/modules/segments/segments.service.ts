@@ -1,18 +1,27 @@
-import { Inject, Injectable, Logger, NotFoundException, InternalServerErrorException, HttpException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, BadRequestException, InternalServerErrorException, HttpException } from '@nestjs/common';
 import { eq, and, inArray } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@linq-beauty/db';
-import { segments, customers, customerTags } from '@linq-beauty/db';
+import { segments, segmentBroadcasts, customers, customerTags, tags, lineAccounts, messages, broadcasts } from '@linq-beauty/db';
 import { DB } from '../../database/database.module';
+import { LineService } from '../line/line.service';
+import { AnthropicService } from '../ai/anthropic.service';
 
 type Db = NodePgDatabase<typeof schema>;
 type SegmentRow = typeof segments.$inferSelect;
+
+// LINE Messaging API 従量課金の仮レート (¥3/通)。本番運用前にプラン別に再計算
+const COST_PER_MESSAGE_YEN = 3;
 
 @Injectable()
 export class SegmentsService {
   private readonly logger = new Logger(SegmentsService.name);
 
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    private readonly lineService: LineService,
+    private readonly anthropic: AnthropicService,
+  ) {}
 
   async list(tenantId: string): Promise<SegmentRow[]> {
     try {
@@ -173,5 +182,246 @@ export class SegmentsService {
     }
 
     return matched;
+  }
+
+  /** Day 8: preview 詳細 (内訳 + コスト見積) */
+  async previewDetail(tenantId: string, id: string) {
+    const segment = await this.get(tenantId, id);
+    const matchedIds = await this.getMatchingCustomerIds(
+      tenantId,
+      segment.tagIds,
+      segment.matchType,
+      segment.excludeTagIds,
+      segment.locationId,
+    );
+
+    if (matchedIds.length === 0) {
+      return {
+        count: 0,
+        tierBreakdown: { active: 0, warm: 0, cold: 0, dormant: 0, unknown: 0 },
+        costEstimate: {
+          totalRecipients: 0,
+          costYen: 0,
+          dormantCount: 0,
+          costExcludingDormantYen: 0,
+          potentialSavingsYen: 0,
+          pricePerMessage: COST_PER_MESSAGE_YEN,
+        },
+        sampleCustomers: [],
+      };
+    }
+
+    const rows = await this.db
+      .select({
+        id: customers.id,
+        displayName: customers.displayName,
+        name: customers.name,
+        engagementTier: customers.engagementTier,
+      })
+      .from(customers)
+      .where(inArray(customers.id, matchedIds));
+
+    const tierBreakdown = { active: 0, warm: 0, cold: 0, dormant: 0, unknown: 0 };
+    for (const r of rows) {
+      const tier = r.engagementTier as keyof typeof tierBreakdown;
+      if (tier in tierBreakdown) {
+        tierBreakdown[tier] += 1;
+      } else {
+        tierBreakdown.unknown += 1;
+      }
+    }
+
+    const totalCost = rows.length * COST_PER_MESSAGE_YEN;
+    const costExcludingDormant = (rows.length - tierBreakdown.dormant) * COST_PER_MESSAGE_YEN;
+
+    return {
+      count: rows.length,
+      tierBreakdown,
+      costEstimate: {
+        totalRecipients: rows.length,
+        costYen: totalCost,
+        dormantCount: tierBreakdown.dormant,
+        costExcludingDormantYen: costExcludingDormant,
+        potentialSavingsYen: totalCost - costExcludingDormant,
+        pricePerMessage: COST_PER_MESSAGE_YEN,
+      },
+      sampleCustomers: rows.slice(0, 5).map((r) => ({
+        id: r.id,
+        name: r.displayName ?? r.name ?? '名前未登録',
+      })),
+    };
+  }
+
+  /** Day 8: セグメント配信実行 — LINE multicast + 履歴 + 統合 broadcasts 記録 */
+  async broadcastToSegment(tenantId: string, id: string, message: string) {
+    if (!message.trim()) {
+      throw new BadRequestException('配信本文が空です');
+    }
+    const segment = await this.get(tenantId, id);
+    const matchedIds = await this.getMatchingCustomerIds(
+      tenantId,
+      segment.tagIds,
+      segment.matchType,
+      segment.excludeTagIds,
+      segment.locationId,
+    );
+
+    if (matchedIds.length === 0) {
+      throw new BadRequestException('該当する顧客がいません');
+    }
+
+    // 送信対象 (lineUserId + lineAccountId が揃っている顧客のみ)
+    const targets = await this.db
+      .select({
+        id: customers.id,
+        lineUserId: customers.lineUserId,
+        lineAccountId: customers.lineAccountId,
+      })
+      .from(customers)
+      .where(inArray(customers.id, matchedIds));
+
+    const sendable = targets.filter((t) => t.lineUserId && t.lineAccountId);
+
+    // 配信履歴 (segment 専用)
+    const [history] = await this.db
+      .insert(segmentBroadcasts)
+      .values({
+        segmentId: id,
+        message,
+        recipientCount: matchedIds.length,
+        sentCount: 0,
+      })
+      .returning();
+
+    // 統合 broadcasts レコード
+    const contentPreview = message.length > 100 ? message.slice(0, 100) + '…' : message;
+    const [unified] = await this.db
+      .insert(broadcasts)
+      .values({
+        tenantId,
+        type: 'segment',
+        segmentId: id,
+        title: `${segment.name} 配信`,
+        contentPreview,
+        messageType: 'text',
+        recipientCount: matchedIds.length,
+        sentAt: new Date(),
+        status: 'sent',
+      })
+      .returning();
+
+    // line_accounts ごとにグルーピングして multicast
+    const byAccount = new Map<string, { lineUserId: string; customerId: string }[]>();
+    for (const t of sendable) {
+      if (!t.lineUserId || !t.lineAccountId) continue;
+      const list = byAccount.get(t.lineAccountId) ?? [];
+      list.push({ lineUserId: t.lineUserId, customerId: t.id });
+      byAccount.set(t.lineAccountId, list);
+    }
+
+    let sentCount = 0;
+    for (const [accountId, recipients] of byAccount) {
+      const [account] = await this.db
+        .select()
+        .from(lineAccounts)
+        .where(eq(lineAccounts.id, accountId))
+        .limit(1);
+      if (!account) continue;
+
+      const credentials = {
+        channelSecret: account.channelSecret,
+        channelAccessToken: account.channelAccessToken,
+      };
+      const userIds = recipients.map((r) => r.lineUserId);
+
+      try {
+        await this.lineService.multicast(credentials, userIds, [{ type: 'text', text: message }]);
+        // 個別メッセージ記録
+        const rows = recipients.map((r) => ({
+          tenantId,
+          lineAccountId: accountId,
+          customerId: r.customerId,
+          direction: 'outbound' as const,
+          messageType: 'text',
+          content: { text: message },
+          sendType: 'broadcast' as const,
+          status: 'sent' as const,
+          sentAt: new Date(),
+          broadcastId: unified.id,
+        }));
+        if (rows.length > 0) await this.db.insert(messages).values(rows);
+        sentCount += recipients.length;
+      } catch (error) {
+        this.logger.error(`Failed to multicast to account ${accountId}: ${error}`);
+      }
+    }
+
+    // sentCount 更新
+    await this.db
+      .update(segmentBroadcasts)
+      .set({ sentCount })
+      .where(eq(segmentBroadcasts.id, history.id));
+
+    return {
+      historyId: history.id,
+      broadcastId: unified.id,
+      recipientCount: matchedIds.length,
+      sendableCount: sendable.length,
+      sentCount,
+    };
+  }
+
+  /** Day 8: AI が配信文の候補を 3 案提案する */
+  async suggestBroadcastMessages(tenantId: string, id: string) {
+    if (!this.anthropic.isEnabled) {
+      throw new BadRequestException('AI 機能が現在無効です (API キー未設定)');
+    }
+    const segment = await this.get(tenantId, id);
+
+    // タグ名解決
+    const allTagIds = [...segment.tagIds, ...segment.excludeTagIds];
+    let tagNameMap = new Map<string, string>();
+    if (allTagIds.length > 0) {
+      const tagRows = await this.db
+        .select({ id: tags.id, name: tags.name })
+        .from(tags)
+        .where(inArray(tags.id, allTagIds));
+      tagNameMap = new Map(tagRows.map((t) => [t.id, t.name]));
+    }
+    const includeTagNames = segment.tagIds.map((tid) => tagNameMap.get(tid)).filter(Boolean) as string[];
+    const excludeTagNames = segment.excludeTagIds.map((tid) => tagNameMap.get(tid)).filter(Boolean) as string[];
+
+    const matchLabel = segment.matchType === 'all' ? 'すべて一致' : 'いずれか一致';
+
+    const systemPrompt = `あなたは美容サロン (美容室・ネイル・エステ・脱毛・整体など) のオーナー支援 AI です。
+LINE 公式アカウントの一斉配信文を、業界の接客トーン (丁寧・親しみ・押し付けない) で 3 案作成してください。
+各案は 100〜180 文字程度、絵文字は控えめ、本文末尾に CTA (予約 / 詳細 / 返信のいずれか) を 1 行配置。
+出力フォーマットは厳守: 「### 案 1」「### 案 2」「### 案 3」の見出しで区切り、本文のみを書く。前置きや解説は不要。`;
+
+    const userPrompt = `配信対象セグメント:
+- 名称: ${segment.name}
+- 説明: ${segment.description ?? '(なし)'}
+- 含めるタグ (${matchLabel}): ${includeTagNames.join(', ') || '(なし)'}
+- 外したいタグ: ${excludeTagNames.join(', ') || '(なし)'}
+
+このセグメントに刺さる配信文を 3 案、上記フォーマットで提示してください。`;
+
+    const text = await this.anthropic.generateText(systemPrompt, userPrompt, { maxTokens: 1500, temperature: 0.8 });
+
+    // 「### 案 N」で分割
+    const sections = text.split(/###\s*案\s*\d+\s*/u).map((s) => s.trim()).filter((s) => s.length > 0);
+    const suggestions = sections.length >= 3 ? sections.slice(0, 3) : [text.trim()];
+
+    return { suggestions };
+  }
+
+  /** segments 配信履歴一覧 */
+  async listBroadcastHistory(tenantId: string, id: string) {
+    await this.get(tenantId, id); // tenant チェック
+    return this.db
+      .select()
+      .from(segmentBroadcasts)
+      .where(eq(segmentBroadcasts.segmentId, id))
+      .orderBy(segmentBroadcasts.sentAt);
   }
 }
