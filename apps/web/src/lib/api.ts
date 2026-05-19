@@ -533,6 +533,20 @@ export const api = {
     listEnrollments: (id: string) =>
       req<StepEnrollmentWithCustomer[]>(`/api/v1/steps/${id}/enrollments?tenantId=${TENANT_ID}`),
   },
+  analytics: {
+    getKpis: (from: string, to: string, locationId?: string) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<AnalyticsKpis>(
+        `/api/v1/analytics/kpis?tenantId=${TENANT_ID}&from=${from}&to=${to}${loc}`,
+      );
+    },
+    getDaily: (from: string, to: string, locationId?: string) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<DailyPoint[]>(
+        `/api/v1/analytics/daily?tenantId=${TENANT_ID}&from=${from}&to=${to}${loc}`,
+      );
+    },
+  },
 };
 
 export type Segment = {
@@ -723,6 +737,24 @@ export type StepEnrollment = {
 
 export type StepEnrollmentWithCustomer = StepEnrollment & {
   customerName: string;
+};
+
+export type AnalyticsKpis = {
+  newCustomers: { value: number; deltaPct: number | null };
+  repeatRate: { value: number; deltaPct: number | null };
+  churnRate: { value: number; deltaPct: number | null };
+  avgPrice: { value: number; deltaPct: number | null };
+  totalReservations: { value: number; deltaPct: number | null };
+  byLocation: { locationId: string; locationName: string; reservationCount: number; uniqueCustomers: number }[];
+  periodFrom: string;
+  periodTo: string;
+};
+
+export type DailyPoint = {
+  date: string;
+  reservations: number;
+  visits: number;
+  newCustomers: number;
 };
 
 export const AI_PURPOSE_LABELS: Record<AiPurpose, string> = {

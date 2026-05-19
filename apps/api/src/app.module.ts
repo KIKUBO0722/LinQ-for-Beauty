@@ -24,6 +24,7 @@ import { CustomersModule } from './modules/customers/customers.module';
 import { SegmentsModule } from './modules/segments/segments.module';
 import { AiModule } from './modules/ai/ai.module';
 import { StepsModule } from './modules/steps/steps.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { StepsModule } from './modules/steps/steps.module';
     SegmentsModule,
     AiModule,
     StepsModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
