@@ -298,7 +298,7 @@ export default function SegmentsPage() {
                   type="text"
                   value={edit.name}
                   onChange={(e) => setEdit({ ...edit, name: e.target.value })}
-                  placeholder="例: 池袋 VIP 月 2 回以上来店"
+                  placeholder="例: VIP リピーター / 新規 1 ヶ月以内 / 休眠顧客"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none focus:ring-2 focus:ring-pink-100"
                 />
               </div>
