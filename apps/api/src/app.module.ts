@@ -20,6 +20,7 @@ import { FormsModule } from './modules/forms/forms.module';
 import { CouponsModule } from './modules/coupons/coupons.module';
 import { TagsModule } from './modules/tags/tags.module';
 import { CustomersModule } from './modules/customers/customers.module';
+import { SegmentsModule } from './modules/segments/segments.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { CustomersModule } from './modules/customers/customers.module';
     CouponsModule,
     TagsModule,
     CustomersModule,
+    SegmentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

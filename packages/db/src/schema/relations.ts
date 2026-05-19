@@ -12,6 +12,7 @@ import { broadcasts, broadcastStats, blockEvents } from './broadcasts';
 import { richMenuGroups, richMenus } from './rich-menus';
 import { coupons } from './coupons';
 import { tags, customerTags } from './tags';
+import { segments } from './segments';
 
 export const reservationsRelations = relations(reservations, ({ one }) => ({
   customers: one(customers, {
@@ -152,4 +153,9 @@ export const tagsRelations = relations(tags, ({ one, many }) => ({
 export const customerTagsRelations = relations(customerTags, ({ one }) => ({
   customer: one(customers, { fields: [customerTags.customerId], references: [customers.id] }),
   tag: one(tags, { fields: [customerTags.tagId], references: [tags.id] }),
+}));
+
+export const segmentsRelations = relations(segments, ({ one }) => ({
+  tenants: one(tenants, { fields: [segments.tenantId], references: [tenants.id] }),
+  locations: one(locations, { fields: [segments.locationId], references: [locations.id] }),
 }));

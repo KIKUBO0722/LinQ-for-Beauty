@@ -385,6 +385,54 @@ export const api = {
     remove: (id: string) =>
       req<{ success: boolean }>(`/api/v1/greetings/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
   },
+  segments: {
+    list: () => req<Segment[]>(`/api/v1/segments?tenantId=${TENANT_ID}`),
+    get: (id: string) => req<Segment>(`/api/v1/segments/${id}?tenantId=${TENANT_ID}`),
+    create: (body: {
+      name: string;
+      description?: string;
+      locationId?: string | null;
+      tagIds: string[];
+      matchType?: 'any' | 'all';
+      excludeTagIds?: string[];
+    }) =>
+      req<Segment>(`/api/v1/segments?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (
+      id: string,
+      body: {
+        name?: string;
+        description?: string;
+        locationId?: string | null;
+        tagIds?: string[];
+        matchType?: 'any' | 'all';
+        excludeTagIds?: string[];
+      },
+    ) =>
+      req<Segment>(`/api/v1/segments/${id}?tenantId=${TENANT_ID}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string) =>
+      req<{ ok: boolean }>(`/api/v1/segments/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
+    previewCount: (id: string) =>
+      req<{ count: number }>(`/api/v1/segments/${id}/preview-count?tenantId=${TENANT_ID}`),
+  },
+};
+
+export type Segment = {
+  id: string;
+  tenantId: string;
+  locationId: string | null;
+  name: string;
+  description: string | null;
+  tagIds: string[];
+  matchType: 'any' | 'all';
+  excludeTagIds: string[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type Broadcast = {
