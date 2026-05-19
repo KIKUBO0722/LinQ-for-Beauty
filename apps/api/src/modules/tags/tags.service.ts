@@ -1,9 +1,10 @@
-import { Inject, Injectable, Logger, NotFoundException, InternalServerErrorException, HttpException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, InternalServerErrorException, HttpException, forwardRef } from '@nestjs/common';
 import { eq, and, asc, inArray } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@linq-beauty/db';
 import { tags, customerTags } from '@linq-beauty/db';
 import { DB } from '../../database/database.module';
+import { StepsService } from '../steps/steps.service';
 
 type Db = NodePgDatabase<typeof schema>;
 
@@ -11,7 +12,10 @@ type Db = NodePgDatabase<typeof schema>;
 export class TagsService {
   private readonly logger = new Logger(TagsService.name);
 
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(forwardRef(() => StepsService)) private readonly steps: StepsService,
+  ) {}
 
   async list(tenantId: string, category?: string) {
     try {
@@ -72,6 +76,12 @@ export class TagsService {
   async assignToCustomer(customerId: string, tagId: string) {
     try {
       await this.db.insert(customerTags).values({ customerId, tagId }).onConflictDoNothing();
+
+      // Day 13: tag トリガーのステップ配信を起動 (失敗しても本処理は止めない)
+      const [tag] = await this.db.select().from(tags).where(eq(tags.id, tagId)).limit(1);
+      if (tag) {
+        void this.steps.triggerByEvent(tag.tenantId, 'tag', { customerId, tagId });
+      }
     } catch (error) {
       this.logger.error(`Failed to assign tag ${tagId} to customer ${customerId}: ${error}`);
       throw error instanceof HttpException ? error : new InternalServerErrorException('操作に失敗しました');

@@ -219,6 +219,51 @@ export class StepsService {
       .where(eq(stepEnrollments.id, enrollmentId));
   }
 
+  /**
+   * Day 13: 外部イベントから該当 scenarios を検索 → 該当 customer を一括 enroll。
+   * 失敗してもイベント本体 (タグ付与など) は止めないので catch して warn のみ。
+   */
+  async triggerByEvent(
+    tenantId: string,
+    triggerType: 'tag' | 'form' | 'friend-add' | 'reservation-completed',
+    params: { customerId: string; tagId?: string; formId?: string; serviceId?: string },
+  ): Promise<void> {
+    try {
+      const candidates = await this.db
+        .select()
+        .from(stepScenarios)
+        .where(
+          and(
+            eq(stepScenarios.tenantId, tenantId),
+            eq(stepScenarios.triggerType, triggerType),
+            eq(stepScenarios.isActive, true),
+          ),
+        );
+
+      for (const scenario of candidates) {
+        // triggerConfig マッチ判定
+        const cfg = scenario.triggerConfig as Record<string, unknown>;
+        if (triggerType === 'tag' && cfg.tagId && cfg.tagId !== params.tagId) continue;
+        if (triggerType === 'form' && cfg.formId && cfg.formId !== params.formId) continue;
+        if (triggerType === 'reservation-completed' && cfg.serviceId && cfg.serviceId !== params.serviceId) continue;
+        // friend-add は customer 単位、追加判定なし
+
+        try {
+          await this.enroll(tenantId, scenario.id, params.customerId);
+          this.logger.log(
+            `Auto-triggered: scenario=${scenario.id} customer=${params.customerId} via ${triggerType}`,
+          );
+        } catch (e) {
+          // 重複登録 (BadRequestException) は無視、他のエラーは warn
+          if (e instanceof BadRequestException) continue;
+          this.logger.warn(`Auto-trigger failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+    } catch (e) {
+      this.logger.error(`triggerByEvent error: ${e}`);
+    }
+  }
+
   async listEnrollments(tenantId: string, scenarioId: string) {
     // tenant チェック
     await this.getScenario(tenantId, scenarioId);

@@ -27,7 +27,10 @@ import {
   type Tag,
   type TimelineEvent,
   type Location,
+  type StepScenarioWithCounts,
+  type StepEnrollment,
 } from '@/lib/api';
+import { Workflow } from 'lucide-react';
 
 const CATEGORY_LABEL: Record<string, string> = {
   treatment: '施術',
@@ -112,6 +115,7 @@ export function CustomerDetailDrawer({
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <ProfileSection customer={customer} locations={locations} />
           <AiAnalysisSection customer={customer} onError={onError} />
+          <StepEnrollmentSection customer={customer} onError={onError} />
           <TagAssigner
             customer={customer}
             tagsAll={tagsAll}
@@ -816,6 +820,93 @@ function AiAnalysisSection({
               <summary className="cursor-pointer">AI の判断根拠を見る</summary>
               <p className="mt-1 rounded-md bg-surface-50 p-2">{result.reasoning}</p>
             </details>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function StepEnrollmentSection({
+  customer,
+  onError,
+}: {
+  customer: CustomerWithTags;
+  onError: (msg: string | null) => void;
+}) {
+  const [scenarios, setScenarios] = useState<StepScenarioWithCounts[]>([]);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string>('');
+  const [busy, setBusy] = useState(false);
+  const [enrolled, setEnrolled] = useState<StepEnrollment[] | null>(null);
+
+  const loadScenarios = useCallback(async () => {
+    try {
+      const rows = await api.steps.list();
+      setScenarios(rows);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e));
+    }
+  }, [onError]);
+
+  useEffect(() => {
+    void loadScenarios();
+  }, [loadScenarios]);
+
+  const enroll = async () => {
+    if (!selectedScenarioId) return;
+    setBusy(true);
+    onError(null);
+    try {
+      const result = await api.steps.enroll(selectedScenarioId, customer.id);
+      setEnrolled((prev) => [...(prev ?? []), result]);
+      setSelectedScenarioId('');
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const activeScenarios = scenarios.filter((s) => s.isActive);
+
+  return (
+    <Card title="ステップ配信に追加">
+      {activeScenarios.length === 0 ? (
+        <p className="text-[11px] text-ink-400">
+          有効なシナリオがありません。先にステップ配信タブで作成 + 有効化してください。
+        </p>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-[11px] text-ink-500">
+            この顧客を選んだシナリオに登録します (重複登録は不可、自動トリガーとは別の手動追加)
+          </p>
+          <div className="flex gap-2">
+            <select
+              value={selectedScenarioId}
+              onChange={(e) => setSelectedScenarioId(e.target.value)}
+              className="flex-1 rounded-md border border-ink-200 px-2 py-1 text-[12px]"
+            >
+              <option value="">シナリオを選択…</option>
+              {activeScenarios.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({s.messageCount} ステップ)
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={enroll}
+              disabled={!selectedScenarioId || busy}
+              className="inline-flex items-center gap-1 rounded-md bg-purple-500 px-3 py-1 text-[11px] font-medium text-white hover:bg-purple-600 disabled:opacity-50"
+            >
+              <Workflow className="h-3 w-3" />
+              {busy ? '登録中…' : '登録'}
+            </button>
+          </div>
+          {enrolled && enrolled.length > 0 && (
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2 text-[11px] text-emerald-700">
+              ✓ {enrolled.length} 件のシナリオに登録しました (このセッション中)
+            </div>
           )}
         </div>
       )}

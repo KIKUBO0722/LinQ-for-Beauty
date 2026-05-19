@@ -1,5 +1,5 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, gte, gt, lt, ne } from 'drizzle-orm';
+import { ConflictException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { and, eq, gte, gt, lt, ne, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@linq-beauty/db';
 import { reservations, services } from '@linq-beauty/db';
@@ -7,6 +7,7 @@ import { DB } from '../../database/database.module';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { RemindersService } from '../reminders/reminders.service';
+import { StepsService } from '../steps/steps.service';
 
 type Db = NodePgDatabase<typeof schema>;
 
@@ -15,6 +16,7 @@ export class ReservationsService {
   constructor(
     @Inject(DB) private db: Db,
     private remindersService: RemindersService,
+    @Inject(forwardRef(() => StepsService)) private steps: StepsService,
   ) {}
 
   findAll(tenantId: string, locationId?: string, from?: string, to?: string) {
@@ -86,6 +88,20 @@ export class ReservationsService {
       .set({ ...dto, updatedAt: new Date() })
       .where(eq(reservations.id, id))
       .returning();
+
+    // Day 13: 来店完了になったら reservation-completed トリガーのステップ配信を起動
+    if (dto.status === 'completed' && r.customerId) {
+      const rows = await this.db.execute<{ tenant_id: string; service_id: string }>(sql`
+        SELECT tenant_id, service_id FROM reservations WHERE id = ${id} LIMIT 1
+      `);
+      const full = rows[0];
+      if (full) {
+        void this.steps.triggerByEvent(full.tenant_id, 'reservation-completed', {
+          customerId: r.customerId,
+          serviceId: full.service_id,
+        });
+      }
+    }
     return r;
   }
 

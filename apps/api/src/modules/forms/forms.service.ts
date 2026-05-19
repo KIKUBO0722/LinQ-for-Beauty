@@ -6,6 +6,7 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { and, desc, eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -14,6 +15,7 @@ import * as schema from '@linq-beauty/db';
 import { customerTags, forms, formResponses } from '@linq-beauty/db';
 import { DB } from '../../database/database.module';
 import type { CreateFormDto, SubmitResponseDto, UpdateFormDto } from './dto/forms.dto';
+import { StepsService } from '../steps/steps.service';
 
 const STORAGE_BUCKET = 'forms-images';
 
@@ -37,7 +39,10 @@ export class FormsService {
   private readonly logger = new Logger(FormsService.name);
   private supabase: SupabaseClient | null = null;
 
-  constructor(@Inject(DB) private readonly db: NodePgDatabase<typeof schema>) {
+  constructor(
+    @Inject(DB) private readonly db: NodePgDatabase<typeof schema>,
+    @Inject(forwardRef(() => StepsService)) private readonly steps: StepsService,
+  ) {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (url && key) {
@@ -192,6 +197,14 @@ export class FormsService {
           this.logger.warn(`Failed to auto-tag ${tagId}: ${err}`);
         }
       }
+    }
+
+    // Day 13: form トリガーのステップ配信を起動
+    if (data.customerId) {
+      void this.steps.triggerByEvent(form.tenantId, 'form', {
+        customerId: data.customerId,
+        formId: form.id,
+      });
     }
 
     return {

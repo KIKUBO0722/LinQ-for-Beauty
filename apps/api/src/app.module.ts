@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
@@ -36,6 +37,7 @@ import { StepsModule } from './modules/steps/steps.module';
         },
       }),
     }),
+    ScheduleModule.forRoot(),
     DatabaseModule,
     LocationsModule,
     ServicesModule,

@@ -36,6 +36,8 @@ import {
   tags,
   customerTags,
   forms,
+  stepScenarios,
+  stepMessages,
 } from '@linq-beauty/db';
 
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -486,6 +488,79 @@ async function main() {
     isPublished: true,
   });
   console.log('  ✓ forms (カウンセリングシート サンプル 1 件、業界実例ベース、公開済)');
+
+  // ========== ステップ配信プリセット 2 種 (Day 13 業界黄金パターン) ==========
+  await db.delete(stepScenarios).where(eq(stepScenarios.tenantId, TENANT_ID));
+
+  // (A) 新規友だち追加 → 4 週間フォロー
+  const [scenarioA] = await db
+    .insert(stepScenarios)
+    .values({
+      tenantId: TENANT_ID,
+      name: '新規友だち追加 → 4 週間フォロー',
+      description: '友だち追加 → 翌日お礼 → 1 週間後使い心地確認 → 4 週間後再来店案内',
+      triggerType: 'friend-add',
+      triggerConfig: {},
+      isActive: true,
+    })
+    .returning();
+
+  await db.insert(stepMessages).values([
+    {
+      scenarioId: scenarioA.id,
+      delayMinutes: 1440, // 1 日後
+      sortOrder: 0,
+      messageContent: {
+        type: 'text',
+        text: '昨日はご来店ありがとうございました。\n仕上がりはいかがでしたでしょうか?\n気になる点があればお気軽にメッセージください。',
+      },
+    },
+    {
+      scenarioId: scenarioA.id,
+      delayMinutes: 1440 * 6, // 1 週間後 (前ステップ = 1 日後 から 6 日)
+      sortOrder: 1,
+      messageContent: {
+        type: 'text',
+        text: 'ご来店から 1 週間が経ちました。\n髪・お肌の調子はいかがですか?\n次回のご相談もお気軽にお知らせください。',
+      },
+    },
+    {
+      scenarioId: scenarioA.id,
+      delayMinutes: 1440 * 21, // 4 週間後 (前ステップ = 1 週後 から 3 週間)
+      sortOrder: 2,
+      messageContent: {
+        type: 'text',
+        text: '前回のご来店から約 4 週間が経ちました。\nそろそろメンテナンスの時期です。\nご都合の良いお日にちをお知らせいただければ、ご予約お取りいたします。',
+      },
+    },
+  ]);
+
+  // (B) カラー後 6 週間サイクル (reservation-completed トリガー)
+  const [scenarioB] = await db
+    .insert(stepScenarios)
+    .values({
+      tenantId: TENANT_ID,
+      name: 'カラー後 6 週間サイクル',
+      description: '来店完了 → 6 週間後にリタッチ案内、カラー利用者向け',
+      triggerType: 'reservation-completed',
+      triggerConfig: {}, // serviceId は本番運用でカラーメニュー ID を設定
+      isActive: false, // serviceId 未設定なので OFF で投入 (運営が ON に切替)
+    })
+    .returning();
+
+  await db.insert(stepMessages).values([
+    {
+      scenarioId: scenarioB.id,
+      delayMinutes: 1440 * 42, // 6 週間後
+      sortOrder: 0,
+      messageContent: {
+        type: 'text',
+        text: '前回のカラーから 6 週間が経ちました。\n根元のリタッチはいかがでしょうか?\nご希望のお日にちをお知らせください、お席をお取りいたします。',
+      },
+    },
+  ]);
+
+  console.log(`  ✓ step_scenarios (業界プリセット 2 種: 新規 4 週間フォロー / カラー後 6 週間サイクル)`);
 
   await client.end();
   console.log('Seed done.');
