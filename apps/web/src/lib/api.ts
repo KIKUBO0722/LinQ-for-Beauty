@@ -480,6 +480,59 @@ export const api = {
         { method: 'POST' },
       ),
   },
+  steps: {
+    list: () => req<StepScenarioWithCounts[]>(`/api/v1/steps?tenantId=${TENANT_ID}`),
+    get: (id: string) =>
+      req<StepScenarioDetail>(`/api/v1/steps/${id}?tenantId=${TENANT_ID}`),
+    create: (body: {
+      name: string;
+      description?: string;
+      locationId?: string | null;
+      triggerType: StepTriggerType;
+      triggerConfig?: Record<string, unknown>;
+      isActive?: boolean;
+    }) =>
+      req<StepScenario>(`/api/v1/steps?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (
+      id: string,
+      body: Partial<{
+        name: string;
+        description: string;
+        locationId: string | null;
+        triggerType: StepTriggerType;
+        triggerConfig: Record<string, unknown>;
+        isActive: boolean;
+      }>,
+    ) =>
+      req<StepScenario>(`/api/v1/steps/${id}?tenantId=${TENANT_ID}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string) =>
+      req<{ ok: true }>(`/api/v1/steps/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
+    replaceMessages: (
+      id: string,
+      messages: Array<{ delayMinutes: number; sortOrder: number; messageContent: { type: 'text'; text: string } }>,
+    ) =>
+      req<StepMessage[]>(`/api/v1/steps/${id}/messages?tenantId=${TENANT_ID}`, {
+        method: 'PUT',
+        body: JSON.stringify({ messages }),
+      }),
+    enroll: (id: string, customerId: string) =>
+      req<StepEnrollment>(`/api/v1/steps/${id}/enroll?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        body: JSON.stringify({ customerId }),
+      }),
+    cancelEnrollment: (enrollmentId: string) =>
+      req<{ ok: true }>(`/api/v1/steps/enrollments/${enrollmentId}?tenantId=${TENANT_ID}`, {
+        method: 'DELETE',
+      }),
+    listEnrollments: (id: string) =>
+      req<StepEnrollmentWithCustomer[]>(`/api/v1/steps/${id}/enrollments?tenantId=${TENANT_ID}`),
+  },
 };
 
 export type Segment = {
@@ -611,6 +664,65 @@ export type CopilotSuggestion = {
   description: string;
   action: 'go-to' | 'create' | 'analyze' | 'message';
   targetPath?: string;
+};
+
+export type StepTriggerType =
+  | 'manual'
+  | 'tag'
+  | 'form'
+  | 'friend-add'
+  | 'reservation-completed';
+
+export const STEP_TRIGGER_LABELS: Record<StepTriggerType, string> = {
+  manual: '手動 (運営側で顧客を追加)',
+  tag: 'タグ付与時 (自動)',
+  form: 'カウンセリングシート回答時 (自動)',
+  'friend-add': 'LINE 友だち追加時 (自動)',
+  'reservation-completed': '来店完了時 (自動)',
+};
+
+export type StepScenario = {
+  id: string;
+  tenantId: string;
+  locationId: string | null;
+  name: string;
+  description: string | null;
+  triggerType: StepTriggerType;
+  triggerConfig: Record<string, unknown>;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type StepScenarioWithCounts = StepScenario & {
+  messageCount: number;
+  activeEnrollmentCount: number;
+};
+
+export type StepMessage = {
+  id: string;
+  scenarioId: string;
+  delayMinutes: number;
+  sortOrder: number;
+  messageContent: { type: 'text'; text: string } | { type: string; [k: string]: unknown };
+  createdAt: string;
+};
+
+export type StepScenarioDetail = StepScenario & { messages: StepMessage[] };
+
+export type StepEnrollment = {
+  id: string;
+  customerId: string;
+  scenarioId: string;
+  currentStepIndex: number;
+  status: 'active' | 'paused' | 'completed' | 'cancelled';
+  enrolledAt: string;
+  nextSendAt: string | null;
+  completedAt: string | null;
+};
+
+export type StepEnrollmentWithCustomer = StepEnrollment & {
+  customerName: string;
 };
 
 export const AI_PURPOSE_LABELS: Record<AiPurpose, string> = {

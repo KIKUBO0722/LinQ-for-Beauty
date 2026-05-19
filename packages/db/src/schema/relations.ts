@@ -14,6 +14,7 @@ import { coupons } from './coupons';
 import { tags, customerTags } from './tags';
 import { segments, segmentBroadcasts } from './segments';
 import { aiConfigs, aiConversations, aiKnowledge } from './ai';
+import { stepScenarios, stepMessages, stepEnrollments } from './steps';
 
 export const reservationsRelations = relations(reservations, ({ one }) => ({
   customers: one(customers, {
@@ -177,4 +178,20 @@ export const aiConversationsRelations = relations(aiConversations, ({ one }) => 
 
 export const aiKnowledgeRelations = relations(aiKnowledge, ({ one }) => ({
   tenants: one(tenants, { fields: [aiKnowledge.tenantId], references: [tenants.id] }),
+}));
+
+export const stepScenariosRelations = relations(stepScenarios, ({ one, many }) => ({
+  tenants: one(tenants, { fields: [stepScenarios.tenantId], references: [tenants.id] }),
+  locations: one(locations, { fields: [stepScenarios.locationId], references: [locations.id] }),
+  messages: many(stepMessages),
+  enrollments: many(stepEnrollments),
+}));
+
+export const stepMessagesRelations = relations(stepMessages, ({ one }) => ({
+  scenario: one(stepScenarios, { fields: [stepMessages.scenarioId], references: [stepScenarios.id] }),
+}));
+
+export const stepEnrollmentsRelations = relations(stepEnrollments, ({ one }) => ({
+  customer: one(customers, { fields: [stepEnrollments.customerId], references: [customers.id] }),
+  scenario: one(stepScenarios, { fields: [stepEnrollments.scenarioId], references: [stepScenarios.id] }),
 }));

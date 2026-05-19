@@ -31,6 +31,7 @@ const sideNav: { label: string; href: string; Icon: LucideIcon }[] = [
   { label: 'リッチメニュー', href: '/admin/rich-menus', Icon: LayoutGrid },
   { label: 'カウンセリング', href: '/admin/forms', Icon: FileText },
   { label: 'AI', href: '/admin/ai', Icon: Bot },
+  { label: 'ステップ配信', href: '/admin/steps', Icon: Workflow },
   { label: '自動化', href: '/admin/automation', Icon: Workflow },
   { label: '分析', href: '/admin/analytics', Icon: BarChart3 },
   { label: 'プロフィール', href: '#', Icon: UserCircle2 },
