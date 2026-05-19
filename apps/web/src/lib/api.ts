@@ -433,6 +433,34 @@ export const api = {
     history: (id: string) =>
       req<SegmentBroadcastHistory[]>(`/api/v1/segments/${id}/history?tenantId=${TENANT_ID}`),
   },
+  ai: {
+    getConfig: () => req<AiConfig>(`/api/v1/ai/config?tenantId=${TENANT_ID}`),
+    updateConfig: (body: Partial<AiConfig>) =>
+      req<AiConfig>(`/api/v1/ai/config?tenantId=${TENANT_ID}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    listKnowledge: (category?: string) => {
+      const cat = category ? `&category=${category}` : '';
+      return req<AiKnowledge[]>(`/api/v1/ai/knowledge?tenantId=${TENANT_ID}${cat}`);
+    },
+    createKnowledge: (body: { category: string; title: string; content: string; tags?: string[]; isActive?: boolean }) =>
+      req<AiKnowledge>(`/api/v1/ai/knowledge?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    updateKnowledge: (id: string, body: Partial<AiKnowledge>) =>
+      req<AiKnowledge>(`/api/v1/ai/knowledge/${id}?tenantId=${TENANT_ID}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    removeKnowledge: (id: string) =>
+      req<{ ok: true }>(`/api/v1/ai/knowledge/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
+    listConversations: () =>
+      req<AiConversationWithCustomer[]>(`/api/v1/ai/conversations?tenantId=${TENANT_ID}`),
+    getConversation: (customerId: string) =>
+      req<AiConversation | null>(`/api/v1/ai/conversations/${customerId}?tenantId=${TENANT_ID}`),
+  },
 };
 
 export type Segment = {
@@ -488,6 +516,66 @@ export type SegmentBroadcastHistory = {
   recipientCount: number;
   sentCount: number;
 };
+
+export type AiKeywordRule = {
+  keyword: string;
+  response: string;
+  matchType?: 'contains' | 'exact' | 'startsWith';
+};
+
+export type AiConfig = {
+  id: string;
+  tenantId: string;
+  systemPrompt: string | null;
+  model: string;
+  temperature: number; // 0-10
+  maxTokens: number;
+  welcomeMessage: string | null;
+  autoReplyEnabled: boolean;
+  handoffKeywords: string[];
+  keywordRules: AiKeywordRule[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiKnowledge = {
+  id: string;
+  tenantId: string;
+  category: string;
+  title: string;
+  content: string;
+  tags: string[];
+  useCount: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiMessage = { role: 'user' | 'assistant'; content: string; ts?: string };
+
+export type AiConversation = {
+  id: string;
+  tenantId: string;
+  customerId: string;
+  messages: AiMessage[];
+  totalTokensUsed: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AiConversationWithCustomer = AiConversation & {
+  customerName: string | null;
+  customerDisplayName: string | null;
+};
+
+export const KNOWLEDGE_CATEGORIES: { id: string; label: string }[] = [
+  { id: 'hours', label: '営業時間 / 定休日' },
+  { id: 'access', label: 'アクセス / 駐車場' },
+  { id: 'menu', label: 'メニュー / 料金' },
+  { id: 'faq', label: 'よくある質問' },
+  { id: 'policy', label: 'ご来店時の注意' },
+  { id: 'other', label: 'その他' },
+];
 
 export type Broadcast = {
   id: string;

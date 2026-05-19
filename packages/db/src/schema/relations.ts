@@ -13,6 +13,7 @@ import { richMenuGroups, richMenus } from './rich-menus';
 import { coupons } from './coupons';
 import { tags, customerTags } from './tags';
 import { segments, segmentBroadcasts } from './segments';
+import { aiConfigs, aiConversations, aiKnowledge } from './ai';
 
 export const reservationsRelations = relations(reservations, ({ one }) => ({
   customers: one(customers, {
@@ -163,4 +164,17 @@ export const segmentsRelations = relations(segments, ({ one, many }) => ({
 
 export const segmentBroadcastsRelations = relations(segmentBroadcasts, ({ one }) => ({
   segment: one(segments, { fields: [segmentBroadcasts.segmentId], references: [segments.id] }),
+}));
+
+export const aiConfigsRelations = relations(aiConfigs, ({ one }) => ({
+  tenants: one(tenants, { fields: [aiConfigs.tenantId], references: [tenants.id] }),
+}));
+
+export const aiConversationsRelations = relations(aiConversations, ({ one }) => ({
+  tenants: one(tenants, { fields: [aiConversations.tenantId], references: [tenants.id] }),
+  customers: one(customers, { fields: [aiConversations.customerId], references: [customers.id] }),
+}));
+
+export const aiKnowledgeRelations = relations(aiKnowledge, ({ one }) => ({
+  tenants: one(tenants, { fields: [aiKnowledge.tenantId], references: [tenants.id] }),
 }));

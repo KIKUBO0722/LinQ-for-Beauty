@@ -16,6 +16,7 @@ import {
   CalendarCheck2,
   Sparkles,
   FileText,
+  Bot,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Logo } from '../_components/Logo';
@@ -29,6 +30,7 @@ const sideNav: { label: string; href: string; Icon: LucideIcon }[] = [
   { label: 'クーポン', href: '/admin/coupons', Icon: Ticket },
   { label: 'リッチメニュー', href: '/admin/rich-menus', Icon: LayoutGrid },
   { label: 'カウンセリング', href: '/admin/forms', Icon: FileText },
+  { label: 'AI', href: '/admin/ai', Icon: Bot },
   { label: '自動化', href: '/admin/automation', Icon: Workflow },
   { label: '分析', href: '/admin/analytics', Icon: BarChart3 },
   { label: 'プロフィール', href: '#', Icon: UserCircle2 },
