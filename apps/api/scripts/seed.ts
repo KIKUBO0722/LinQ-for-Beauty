@@ -65,7 +65,7 @@ const TEMPLATES: Array<{ id: string; name: string; content: string; category: st
 ];
 
 const GREETINGS: Array<{ id: string; type: string; name: string; messages: Array<Record<string, unknown>> }> = [
-  { id: '66666666-6666-6666-6666-666666666601', type: 'welcome', name: '友だち追加直後',         messages: [{ type: 'text', text: 'はじめまして、癒明です。\nご来店のご予約は LINE からお気軽にどうぞ。' }] },
+  { id: '66666666-6666-6666-6666-666666666601', type: 'welcome', name: '友だち追加直後',         messages: [{ type: 'text', text: '友だち追加ありがとうございます。\nご来店のご予約は LINE からお気軽にどうぞ。' }] },
   { id: '66666666-6666-6666-6666-666666666602', type: 'thanks',  name: '来店後 1 時間お礼', messages: [{ type: 'text', text: '本日はご来店ありがとうございました。\nまたお会いできるのを楽しみにしております。' }] },
 ];
 
@@ -126,8 +126,8 @@ async function main() {
   // Tenant
   await db
     .insert(tenants)
-    .values({ id: TENANT_ID, name: '癒明 (ゆめい)', email: 'hirayama@yumei.test' })
-    .onConflictDoUpdate({ target: tenants.id, set: { name: '癒明 (ゆめい)', updatedAt: new Date() } });
+    .values({ id: TENANT_ID, name: 'サンプル サロン', email: 'owner@sample-salon.test' })
+    .onConflictDoUpdate({ target: tenants.id, set: { name: 'サンプル サロン', updatedAt: new Date() } });
   console.log('  ✓ tenant');
 
   // Locations (slug required by schema)

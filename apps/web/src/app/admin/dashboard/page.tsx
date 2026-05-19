@@ -130,8 +130,8 @@ function apiToDisplay(r: ApiReservation): Reservation {
   const initial = name.charAt(0);
   const status: Reservation['status'] =
     r.status === 'confirmed' || r.status === 'completed' ? '確定' : '未確定';
-  const locationName = r.locations?.name ?? '東京';
-  const location: Reservation['location'] = locationName.includes('相生') ? '相生' : '東京';
+  const locationName = r.locations?.name ?? '店舗 A';
+  const location: Reservation['location'] = locationName;
   return {
     id: r.id,
     time,
@@ -169,8 +169,8 @@ const PLACEHOLDER_RESERVATIONS: Reservation[] = [
     birthday: '3 月 12 日',
     visits: 8,
     lastVisit: '2026/04/05',
-    staff: '平山',
-    location: '東京',
+    staff: 'スタッフ A',
+    location: '店舗 A',
     memo: '前回トーン 7、艶感を希望。会話は控えめ',
   },
   {
@@ -186,8 +186,8 @@ const PLACEHOLDER_RESERVATIONS: Reservation[] = [
     birthday: '9 月 14 日',
     visits: 12,
     lastVisit: '2026/04/22',
-    staff: '平山',
-    location: '東京',
+    staff: 'スタッフ A',
+    location: '店舗 A',
     memo: 'ロッドはミディアム、根元はゆるめ希望',
     aiInsight:
       'カラー履歴 6 回、平均間隔 42 日。次回は 6 月上旬にダークブラウンの提案で再来店率が高くなる傾向。',
@@ -205,8 +205,8 @@ const PLACEHOLDER_RESERVATIONS: Reservation[] = [
     birthday: '7 月 3 日',
     visits: 4,
     lastVisit: '2026/03/18',
-    staff: '佐々木',
-    location: '相生',
+    staff: 'スタッフ B',
+    location: '店舗 B',
     memo: '',
     aiInsight:
       '前回より 60 日経過。返信なしのまま 24h を超えると失客リスク。今日 17:00 までに自動再リマインダーを送る予定。',
@@ -223,8 +223,8 @@ const PLACEHOLDER_RESERVATIONS: Reservation[] = [
     birthday: '11 月 28 日',
     visits: 22,
     lastVisit: '2026/04/30',
-    staff: '本田',
-    location: '東京',
+    staff: 'スタッフ C',
+    location: '店舗 A',
     memo: 'VIP 顧客、来店時は紅茶 (アールグレイ)',
   },
   {
@@ -240,8 +240,8 @@ const PLACEHOLDER_RESERVATIONS: Reservation[] = [
     birthday: '5 月 30 日',
     visits: 15,
     lastVisit: '2026/04/12',
-    staff: '平山',
-    location: '東京',
+    staff: 'スタッフ A',
+    location: '店舗 A',
     memo: '頭皮の乾燥が気になる。スパは指圧強め',
     aiInsight:
       '誕生月。誕生日メッセージ + 10% OFF クーポンの自動配信が予約済 (5/28 朝)。',

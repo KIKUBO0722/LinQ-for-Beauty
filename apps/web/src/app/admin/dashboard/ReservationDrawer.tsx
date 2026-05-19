@@ -31,12 +31,12 @@ export type Reservation = {
   visits: number;
   lastVisit: string;
   staff: string;
-  location: '東京' | '相生';
+  location: string;
   memo?: string;
   aiInsight?: string;
 };
 
-const staffOptions = ['平山', '佐々木', '本田', 'AI 振り分け'];
+const staffOptions = ['スタッフ A', 'スタッフ B', 'スタッフ C', 'AI 振り分け'];
 const menuOptions = [
   'カット',
   'カット + カラー',
