@@ -14,4 +14,5 @@ export * from './broadcasts';
 export * from './rich-menus';
 export * from './coupons';
 export * from './tags';
+export * from './forms';
 export * from './relations';

@@ -35,6 +35,7 @@ import {
   coupons,
   tags,
   customerTags,
+  forms,
 } from '@linq-beauty/db';
 
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -423,6 +424,68 @@ async function main() {
     },
   ]);
   console.log('  ✓ rich-menus (店舗 A + 店舗 B、定番 6 ボタン構成)');
+
+  // Forms (clear and re-insert) — 美容室向けサンプル 1 件 (業界実例ベース)
+  await db.delete(forms).where(eq(forms.tenantId, TENANT_ID));
+  await db.insert(forms).values({
+    tenantId: TENANT_ID,
+    locationId: IKEBUKURO_ID,
+    name: 'カウンセリングシート (美容室サンプル)',
+    slug: 'sample-counseling',
+    category: 'hair_salon',
+    description: '初回ご来店前に、お客様情報を事前にお伺いします。スムーズなご案内のためご協力ください。',
+    fields: [
+      {
+        id: 'name',
+        type: 'short_text',
+        label: 'お名前',
+        required: true,
+        placeholder: '例: 山田 花子',
+      },
+      {
+        id: 'motivation',
+        type: 'long_text',
+        label: '今回の来店理由・なりたいイメージ',
+        required: false,
+        placeholder: '例: 伸びたので整えたい / 髪色を明るくしたい / 結婚式に向けてイメチェン',
+        helperText: '「ふんわり」などの曖昧表現より、雰囲気が伝わると提案精度が上がります',
+      },
+      {
+        id: 'concern',
+        type: 'multi_choice',
+        label: '髪の悩み',
+        required: false,
+        options: ['くせ毛', 'ボリューム不足', '白髪', 'ダメージ', 'カラー退色', '広がり', '頭皮のかゆみ', 'その他'],
+      },
+      {
+        id: 'allergy',
+        type: 'single_choice',
+        label: 'カラー・パーマでかぶれた経験',
+        required: true,
+        options: ['ない', 'ある', '不明'],
+      },
+      {
+        id: 'allergy_detail',
+        type: 'long_text',
+        label: 'かぶれた経験の詳細',
+        required: false,
+        placeholder: '例: 〇〇というカラー剤で頭皮が赤くなった / かゆみが 1 週間続いた',
+        helperText: '「ある」と回答した方のみご記入ください',
+        showIf: { fieldId: 'allergy', mode: 'equals', equals: 'ある' },
+      },
+      {
+        id: 'reference',
+        type: 'image',
+        label: '理想のヘアスタイル写真 (任意)',
+        required: false,
+        helperText: 'なりたい雰囲気が伝わる写真を 1〜3 枚。SNS のスクリーンショットも OK',
+      },
+    ],
+    autoTagIds: [],
+    thankYouMessage: 'この度はご回答いただき誠にありがとうございます。当日お会いできるのを心より楽しみにしております。',
+    isPublished: true,
+  });
+  console.log('  ✓ forms (カウンセリングシート サンプル 1 件、業界実例ベース、公開済)');
 
   await client.end();
   console.log('Seed done.');
