@@ -16,10 +16,14 @@ import {
   UserPlus,
   UserMinus,
   Save,
+  Sparkles,
+  Loader2,
+  Copy,
 } from 'lucide-react';
 import {
   api,
   type CustomerWithTags,
+  type CustomerAnalysisResult,
   type Tag,
   type TimelineEvent,
   type Location,
@@ -63,7 +67,7 @@ type Props = {
   locations: Location[];
   onClose: () => void;
   onRefresh: () => void;
-  onError: (msg: string) => void;
+  onError: (msg: string | null) => void;
 };
 
 export function CustomerDetailDrawer({
@@ -107,6 +111,7 @@ export function CustomerDetailDrawer({
         <DrawerHeader customer={customer} onClose={onClose} />
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <ProfileSection customer={customer} locations={locations} />
+          <AiAnalysisSection customer={customer} onError={onError} />
           <TagAssigner
             customer={customer}
             tagsAll={tagsAll}
@@ -242,7 +247,7 @@ function TagAssigner({
   customer: CustomerWithTags;
   tagsAll: Tag[];
   onRefresh: () => void;
-  onError: (msg: string) => void;
+  onError: (msg: string | null) => void;
 }) {
   const [adderOpen, setAdderOpen] = useState(false);
   const assignedIds = useMemo(() => new Set(customer.tags.map((t) => t.id)), [customer.tags]);
@@ -364,7 +369,7 @@ function NotesSection({
 }: {
   customer: CustomerWithTags;
   onRefresh: () => void;
-  onError: (msg: string) => void;
+  onError: (msg: string | null) => void;
 }) {
   const [notes, setNotes] = useState(customer.notes ?? '');
   const [saving, setSaving] = useState(false);
@@ -427,7 +432,7 @@ function CustomFieldsEditor({
 }: {
   customer: CustomerWithTags;
   onRefresh: () => void;
-  onError: (msg: string) => void;
+  onError: (msg: string | null) => void;
 }) {
   const existing = (customer.customFields ?? {}) as Record<string, unknown>;
   const [draft, setDraft] = useState<Record<string, string>>(
@@ -691,5 +696,129 @@ function Card({
       </div>
       {children}
     </section>
+  );
+}
+
+const RISK_LABEL: Record<CustomerAnalysisResult['churnRisk'], { label: string; color: string }> = {
+  low: { label: '低', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  medium: { label: '中', color: 'bg-amber-100 text-amber-700 border-amber-200' },
+  high: { label: '高', color: 'bg-rose-100 text-rose-700 border-rose-200' },
+  unknown: { label: '不明', color: 'bg-slate-100 text-slate-600 border-slate-200' },
+};
+
+function AiAnalysisSection({
+  customer,
+  onError,
+}: {
+  customer: CustomerWithTags;
+  onError: (msg: string | null) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<CustomerAnalysisResult | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const analyze = async () => {
+    setLoading(true);
+    setResult(null);
+    onError(null);
+    try {
+      const r = await api.ai.analyzeCustomer(customer.id);
+      setResult(r);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copySuggested = async () => {
+    if (!result?.suggestedMessage) return;
+    try {
+      await navigator.clipboard.writeText(result.suggestedMessage);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      onError('クリップボードへのコピーに失敗しました');
+    }
+  };
+
+  return (
+    <Card
+      title="AI 分析"
+      right={
+        <button
+          type="button"
+          onClick={analyze}
+          disabled={loading}
+          className="inline-flex items-center gap-1 rounded-md border border-purple-200 bg-purple-50 px-2 py-1 text-[11px] font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+        >
+          {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+          {result ? '再分析' : 'AI で分析'}
+        </button>
+      }
+    >
+      {!result && !loading && (
+        <p className="text-[11px] text-ink-400">
+          来店履歴・タグ・会話履歴から AI が「再来店予測」「離脱リスク」「推奨アクション」「推奨メッセージ」を分析。
+        </p>
+      )}
+      {loading && (
+        <div className="flex items-center gap-2 py-3 text-[12px] text-ink-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          AI 分析中…
+        </div>
+      )}
+      {result && (
+        <div className="space-y-2 text-[12px]">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-md border border-ink-100 bg-surface-50 p-2">
+              <div className="text-[10px] text-ink-400">予測再来店日</div>
+              <div className="font-medium text-ink-900">{result.predictedNextVisit ?? '不明'}</div>
+            </div>
+            <div className="rounded-md border border-ink-100 bg-surface-50 p-2">
+              <div className="text-[10px] text-ink-400">離脱リスク</div>
+              <div className="font-medium">
+                <span
+                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${RISK_LABEL[result.churnRisk].color}`}
+                >
+                  {RISK_LABEL[result.churnRisk].label}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {result.recommendedAction && (
+            <div className="rounded-md border border-purple-100 bg-purple-50/60 p-2">
+              <div className="text-[10px] font-medium text-purple-600">推奨アクション</div>
+              <div className="mt-0.5 text-purple-900">{result.recommendedAction}</div>
+            </div>
+          )}
+
+          {result.suggestedMessage && (
+            <div className="rounded-md border border-purple-100 bg-white p-2">
+              <div className="mb-1 flex items-center justify-between">
+                <div className="text-[10px] font-medium text-purple-600">推奨メッセージ</div>
+                <button
+                  type="button"
+                  onClick={copySuggested}
+                  className="inline-flex items-center gap-1 rounded border border-purple-200 px-1.5 py-0.5 text-[10px] text-purple-700 hover:bg-purple-50"
+                >
+                  <Copy className="h-2.5 w-2.5" />
+                  {copied ? 'コピー済' : 'コピー'}
+                </button>
+              </div>
+              <p className="whitespace-pre-wrap leading-relaxed text-ink-700">{result.suggestedMessage}</p>
+            </div>
+          )}
+
+          {result.reasoning && (
+            <details className="text-[11px] text-ink-500">
+              <summary className="cursor-pointer">AI の判断根拠を見る</summary>
+              <p className="mt-1 rounded-md bg-surface-50 p-2">{result.reasoning}</p>
+            </details>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }

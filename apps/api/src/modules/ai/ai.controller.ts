@@ -4,6 +4,8 @@ import { AiKnowledgeService } from './ai-knowledge.service';
 import { AiConversationsService } from './ai-conversations.service';
 import { AiAutoReplyService } from './ai-auto-reply.service';
 import { AiGenerationService } from './ai-generation.service';
+import { AiAnalysisService } from './ai-analysis.service';
+import { AiCopilotService, type CopilotContext } from './ai-copilot.service';
 import { CreateKnowledgeDto, UpdateAiConfigDto, UpdateKnowledgeDto, GenerateDto, TestReplyDto } from './dto/ai.dto';
 
 @Controller('api/v1/ai')
@@ -14,6 +16,8 @@ export class AiController {
     private readonly conversations: AiConversationsService,
     private readonly autoReply: AiAutoReplyService,
     private readonly generation: AiGenerationService,
+    private readonly analysis: AiAnalysisService,
+    private readonly copilot: AiCopilotService,
   ) {}
 
   // ====== AI 設定 ======
@@ -84,5 +88,20 @@ export class AiController {
   @Post('test-reply')
   async testReply(@Query('tenantId') tenantId: string, @Body() body: TestReplyDto) {
     return this.autoReply.replyTo(tenantId, body.customerId, body.userText);
+  }
+
+  // ====== Day 11: 顧客分析 + Copilot ======
+
+  @Post('analyze-customer/:id')
+  async analyzeCustomer(@Query('tenantId') tenantId: string, @Param('id') id: string) {
+    return this.analysis.analyzeCustomer(tenantId, id);
+  }
+
+  @Post('copilot-suggest')
+  async copilotSuggest(@Query('tenantId') tenantId: string, @Query('context') context: CopilotContext) {
+    if (!['dashboard', 'inbox', 'broadcast', 'customers', 'segments'].includes(context)) {
+      return { suggestions: [] };
+    }
+    return this.copilot.suggest(tenantId, context);
   }
 }

@@ -470,6 +470,15 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ customerId, userText }),
       }),
+    analyzeCustomer: (customerId: string) =>
+      req<CustomerAnalysisResult>(`/api/v1/ai/analyze-customer/${customerId}?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+      }),
+    copilotSuggest: (context: CopilotContext) =>
+      req<{ suggestions: CopilotSuggestion[] }>(
+        `/api/v1/ai/copilot-suggest?tenantId=${TENANT_ID}&context=${context}`,
+        { method: 'POST' },
+      ),
   },
 };
 
@@ -585,6 +594,23 @@ export type AutoReplyResult = {
   responseText: string;
   source: 'handoff' | 'keyword' | 'ai' | 'disabled';
   needsHandoff: boolean;
+};
+
+export type CustomerAnalysisResult = {
+  predictedNextVisit: string | null;
+  churnRisk: 'low' | 'medium' | 'high' | 'unknown';
+  recommendedAction: string;
+  suggestedMessage: string;
+  reasoning: string;
+};
+
+export type CopilotContext = 'dashboard' | 'inbox' | 'broadcast' | 'customers' | 'segments';
+
+export type CopilotSuggestion = {
+  title: string;
+  description: string;
+  action: 'go-to' | 'create' | 'analyze' | 'message';
+  targetPath?: string;
 };
 
 export const AI_PURPOSE_LABELS: Record<AiPurpose, string> = {
