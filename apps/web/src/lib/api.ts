@@ -502,3 +502,175 @@ export type Greeting = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type RichMenuAreaAction =
+  | { type: 'message'; text: string }
+  | { type: 'uri'; uri: string; label?: string }
+  | { type: 'postback'; data: string; label?: string; displayText?: string };
+
+export type RichMenuArea = {
+  bounds: { x: number; y: number; width: number; height: number };
+  action: RichMenuAreaAction;
+  label?: string;
+};
+
+export type RichMenuSize = { width: number; height: number };
+
+export type RichMenu = {
+  id: string;
+  tenantId: string;
+  locationId: string | null;
+  lineAccountId: string;
+  lineRichMenuId: string | null;
+  name: string;
+  chatBarText: string | null;
+  size: RichMenuSize | null;
+  areas: RichMenuArea[] | null;
+  imageUrl: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+  groupId: string | null;
+  tabIndex: number | null;
+  lineAliasId: string | null;
+  createdAt: string;
+};
+
+export type LineAccount = {
+  id: string;
+  tenantId: string;
+  channelId: string;
+};
+
+export const richMenusApi = {
+  list: async (locationId?: string) => {
+    const params = new URLSearchParams({ tenantId: TENANT_ID });
+    if (locationId) params.set('locationId', locationId);
+    return req<RichMenu[]>(`/api/v1/rich-menus?${params.toString()}`);
+  },
+  create: async (data: {
+    lineAccountId: string;
+    name: string;
+    chatBarText?: string;
+    areas?: RichMenuArea[];
+    size?: RichMenuSize;
+    locationId?: string;
+  }) =>
+    req<RichMenu>(`/api/v1/rich-menus?tenantId=${TENANT_ID}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: async (
+    id: string,
+    data: {
+      name?: string;
+      chatBarText?: string;
+      areas?: RichMenuArea[];
+      size?: RichMenuSize;
+    },
+  ) =>
+    req<RichMenu>(`/api/v1/rich-menus/${id}?tenantId=${TENANT_ID}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  delete: async (id: string) =>
+    req<{ ok: true }>(`/api/v1/rich-menus/${id}?tenantId=${TENANT_ID}`, {
+      method: 'DELETE',
+    }),
+  setDefault: async (id: string) =>
+    req<{ ok: true }>(`/api/v1/rich-menus/${id}/default?tenantId=${TENANT_ID}`, {
+      method: 'POST',
+    }),
+  uploadImage: async (id: string, file: File) => {
+    const form = new FormData();
+    form.append('image', file);
+    const res = await fetch(
+      `${BASE}/api/v1/rich-menus/${id}/image?tenantId=${TENANT_ID}`,
+      { method: 'POST', body: form },
+    );
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(`${res.status} ${text}`);
+    }
+    return res.json() as Promise<{ ok: true }>;
+  },
+};
+
+export const lineAccountsApi = {
+  list: async () =>
+    req<LineAccount[]>(`/api/v1/line-accounts?tenantId=${TENANT_ID}`),
+};
+
+export type RichMenuPreset = {
+  presetId: string;
+  name: string;
+  description: string;
+  chatBarText: string;
+  size: RichMenuSize;
+  areas: RichMenuArea[];
+};
+
+export const RICH_MENU_PRESETS: RichMenuPreset[] = [
+  {
+    presetId: 'classic-6',
+    name: '定番 6 ボタン',
+    description: '通常営業用の標準セット (予約 / クーポン / メニュー / 店舗 / カード / SNS)',
+    chatBarText: 'メニュー',
+    size: { width: 2500, height: 1686 },
+    areas: [
+      {
+        bounds: { x: 0, y: 0, width: 833, height: 843 },
+        action: { type: 'uri', uri: '', label: '予約する' },
+        label: '予約する',
+      },
+      {
+        bounds: { x: 833, y: 0, width: 834, height: 843 },
+        action: { type: 'message', text: 'クーポンを見たい' },
+        label: 'クーポン',
+      },
+      {
+        bounds: { x: 1667, y: 0, width: 833, height: 843 },
+        action: { type: 'message', text: 'メニューを教えて' },
+        label: 'メニュー・料金',
+      },
+      {
+        bounds: { x: 0, y: 843, width: 833, height: 843 },
+        action: { type: 'message', text: '店舗情報を教えて' },
+        label: '店舗・アクセス',
+      },
+      {
+        bounds: { x: 833, y: 843, width: 834, height: 843 },
+        action: { type: 'message', text: 'スタンプを見せて' },
+        label: 'ショップカード',
+      },
+      {
+        bounds: { x: 1667, y: 843, width: 833, height: 843 },
+        action: { type: 'uri', uri: '', label: 'SNS' },
+        label: 'SNS',
+      },
+    ],
+  },
+  {
+    presetId: 'campaign',
+    name: 'キャンペーン用',
+    description: '季節キャンペーン期間用 (左半分大 + 右上下小)',
+    chatBarText: 'キャンペーン中',
+    size: { width: 2500, height: 1686 },
+    areas: [
+      {
+        bounds: { x: 0, y: 0, width: 1250, height: 1686 },
+        action: { type: 'message', text: 'キャンペーンを教えて' },
+        label: 'キャンペーン詳細',
+      },
+      {
+        bounds: { x: 1250, y: 0, width: 1250, height: 843 },
+        action: { type: 'uri', uri: '', label: '予約する' },
+        label: '予約する',
+      },
+      {
+        bounds: { x: 1250, y: 843, width: 1250, height: 843 },
+        action: { type: 'message', text: 'クーポンを見たい' },
+        label: 'クーポン',
+      },
+    ],
+  },
+];

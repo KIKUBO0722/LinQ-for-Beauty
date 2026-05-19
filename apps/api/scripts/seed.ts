@@ -130,20 +130,21 @@ async function main() {
   console.log('  ✓ tenant');
 
   // Locations (slug required by schema)
+  // 汎用 demo: 平山さん固有 (池袋 / 相生 / 癒明) を hardcode せず、店舗 A / B のサンプル名で投入
   const IKEBUKURO = {
     id: IKEBUKURO_ID,
     tenantId: TENANT_ID,
-    name: '癒明 池袋',
-    slug: 'ikebukuro',
-    address: '東京都豊島区池袋 (仮)',
+    name: '店舗 A',
+    slug: 'store-a',
+    address: 'サンプル住所 1',
     businessHours: { mon: { open: '11:00', close: '20:00' }, tue: { open: '11:00', close: '20:00' }, wed: { open: '11:00', close: '20:00' }, thu: { open: '11:00', close: '20:00' }, fri: { open: '11:00', close: '20:00' }, sat: { open: '10:00', close: '19:00' }, sun: { open: '10:00', close: '19:00' } },
   };
   const AIOI = {
     id: AIOI_ID,
     tenantId: TENANT_ID,
-    name: '癒明 相生',
-    slug: 'aioi',
-    address: '兵庫県相生市 (仮、開店日未確定)',
+    name: '店舗 B',
+    slug: 'store-b',
+    address: 'サンプル住所 2',
     businessHours: { mon: { open: '10:00', close: '19:00' }, tue: { open: '10:00', close: '19:00' }, wed: { open: '10:00', close: '19:00' }, thu: { open: '10:00', close: '19:00' }, fri: { open: '10:00', close: '19:00' }, sat: { open: '10:00', close: '19:00' }, sun: { open: '10:00', close: '19:00' } },
   };
   await db
@@ -160,7 +161,7 @@ async function main() {
       target: locations.id,
       set: { name: AIOI.name, slug: AIOI.slug, address: AIOI.address, businessHours: AIOI.businessHours, updatedAt: new Date() },
     });
-  console.log('  ✓ locations (池袋 + 相生)');
+  console.log('  ✓ locations (店舗 A + 店舗 B)');
 
   // Services
   for (const s of SERVICES) {
@@ -384,19 +385,28 @@ async function main() {
       sentAt: new Date(Date.now() - 10 * 60 * 1000),
     },
   ]);
-  console.log('  ✓ messages (sample conversations: 池袋 1, 相生 1)');
+  console.log('  ✓ messages (sample conversations: 店舗 A 1, 店舗 B 1)');
 
   // Rich menus (clear and re-insert)
+  // 業界向けひな型「定番 6 ボタン (2×3)」で初期登録、URL 系は空欄 (テナント側で後から編集)
   await db.delete(richMenus).where(eq(richMenus.tenantId, TENANT_ID));
+  const CLASSIC_6_AREAS = [
+    { bounds: { x: 0,    y: 0,   width: 833, height: 843 }, action: { type: 'uri',     uri: '', label: '予約する' },        label: '予約する' },
+    { bounds: { x: 833,  y: 0,   width: 834, height: 843 }, action: { type: 'message', text: 'クーポンを見たい' },           label: 'クーポン' },
+    { bounds: { x: 1667, y: 0,   width: 833, height: 843 }, action: { type: 'message', text: 'メニューを教えて' },           label: 'メニュー・料金' },
+    { bounds: { x: 0,    y: 843, width: 833, height: 843 }, action: { type: 'message', text: '店舗情報を教えて' },           label: '店舗・アクセス' },
+    { bounds: { x: 833,  y: 843, width: 834, height: 843 }, action: { type: 'message', text: 'スタンプを見せて' },           label: 'ショップカード' },
+    { bounds: { x: 1667, y: 843, width: 833, height: 843 }, action: { type: 'uri',     uri: '', label: 'SNS' },              label: 'SNS' },
+  ];
   await db.insert(richMenus).values([
     {
       tenantId: TENANT_ID,
       locationId: IKEBUKURO_ID,
       lineAccountId: LINE_ACCOUNT_ID,
-      name: '池袋 メインメニュー',
+      name: '店舗 A 通常メニュー',
       chatBarText: 'メニュー',
       size: { width: 2500, height: 1686 },
-      areas: [{ bounds: { x: 0, y: 0, width: 2500, height: 1686 }, action: { type: 'message', text: '予約したい' } }],
+      areas: CLASSIC_6_AREAS,
       isDefault: true,
       isActive: false,
     },
@@ -404,15 +414,15 @@ async function main() {
       tenantId: TENANT_ID,
       locationId: AIOI_ID,
       lineAccountId: LINE_ACCOUNT_ID,
-      name: '相生 メインメニュー',
+      name: '店舗 B 通常メニュー',
       chatBarText: 'メニュー',
       size: { width: 2500, height: 1686 },
-      areas: [{ bounds: { x: 0, y: 0, width: 2500, height: 1686 }, action: { type: 'message', text: '予約したい' } }],
+      areas: CLASSIC_6_AREAS,
       isDefault: false,
       isActive: false,
     },
   ]);
-  console.log('  ✓ rich-menus (池袋 + 相生)');
+  console.log('  ✓ rich-menus (店舗 A + 店舗 B、定番 6 ボタン構成)');
 
   await client.end();
   console.log('Seed done.');

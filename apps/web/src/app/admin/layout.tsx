@@ -26,7 +26,7 @@ const sideNav: { label: string; href: string; Icon: LucideIcon }[] = [
   { label: '配信先', href: '#', Icon: Layers },
   { label: '配信', href: '/admin/broadcast', Icon: Megaphone },
   { label: 'クーポン', href: '/admin/coupons', Icon: Ticket },
-  { label: 'リッチメニュー', href: '#', Icon: LayoutGrid },
+  { label: 'リッチメニュー', href: '/admin/rich-menus', Icon: LayoutGrid },
   { label: '自動化', href: '/admin/automation', Icon: Workflow },
   { label: '分析', href: '/admin/analytics', Icon: BarChart3 },
   { label: 'プロフィール', href: '#', Icon: UserCircle2 },
@@ -106,7 +106,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               className="inline-block h-2 w-2 rounded-full"
               style={{ background: 'var(--line-green)' }}
             />
-            Beauty Salon Lumiere
+            サンプル サロン
             <ChevronDown size={14} className="text-ink-300" strokeWidth={1.75} />
           </button>
 
