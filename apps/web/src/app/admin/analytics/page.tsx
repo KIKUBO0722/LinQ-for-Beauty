@@ -10,12 +10,15 @@ import {
   Sparkles,
   TrendingUp,
   Loader2,
+  UserMinus,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import {
   api,
   TENANT_ID,
   type AnalyticsKpis,
+  type BroadcastFunnel,
+  type CohortAnalysis,
   type DailyPoint,
   type Location,
 } from '@/lib/api';
@@ -41,6 +44,8 @@ export default function AnalyticsPage() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [kpis, setKpis] = useState<AnalyticsKpis | null>(null);
   const [daily, setDaily] = useState<DailyPoint[] | null>(null);
+  const [funnel, setFunnel] = useState<BroadcastFunnel | null>(null);
+  const [cohort, setCohort] = useState<CohortAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,13 +54,17 @@ export default function AnalyticsPage() {
     setError(null);
     try {
       const { from, to } = periodToRange(period);
-      const [k, d, locs] = await Promise.all([
+      const [k, d, f, c, locs] = await Promise.all([
         api.analytics.getKpis(from, to, locationId || undefined),
         api.analytics.getDaily(from, to, locationId || undefined),
+        api.analytics.getBroadcastFunnel(from, to, locationId || undefined),
+        api.analytics.getCohort(locationId || undefined),
         api.locations.list(),
       ]);
       setKpis(k);
       setDaily(d);
+      setFunnel(f);
+      setCohort(c);
       setLocations(locs);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -74,7 +83,7 @@ export default function AnalyticsPage() {
         <div>
           <h1 className="text-2xl font-bold text-ink-900">分析 (数字で見る成果指標)</h1>
           <p className="mt-1 text-sm text-ink-500">
-            新規 / リピート / 失客 / 平均単価 / 拠点別 を期間別で確認。コホート (= 週次定着率) / 流入元 / URL クリック追跡 / コンバージョン目標 は Day 15 で追加予定。
+            新規 / リピート / 失客 / 平均単価 / LINE 友だち削除 / 拠点別 / 流入元 を期間別で確認。コホート (= 月別グループの定着率) / 配信ファネル詳細 は本セッションで追加予定、URL クリック追跡 / コンバージョン目標 は Day 16 以降。
           </p>
         </div>
         {loading && <Loader2 className="h-5 w-5 animate-spin text-ink-400" />}
@@ -117,7 +126,7 @@ export default function AnalyticsPage() {
       </div>
 
       {kpis && (
-        <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <section className="grid grid-cols-2 gap-3 md:grid-cols-6">
           <KpiCard
             Icon={Users}
             label="新規顧客"
@@ -152,6 +161,16 @@ export default function AnalyticsPage() {
             Icon={Footprints}
             label="平均単価"
             value={kpis.avgPrice.value > 0 ? `¥${kpis.avgPrice.value.toLocaleString()}` : '—'}
+            delta={kpis.avgPrice.value > 0 ? formatDelta(kpis.avgPrice.deltaPct) : undefined}
+            spark={[]}
+          />
+          <KpiCard
+            Icon={UserMinus}
+            label="LINE 友だち削除"
+            value={String(kpis.blockCount.value)}
+            unit="件"
+            delta={formatDelta(kpis.blockCount.deltaPct)}
+            deltaInverse
             spark={[]}
           />
         </section>
@@ -166,7 +185,7 @@ export default function AnalyticsPage() {
           )}
           <div className="mt-3 flex items-center gap-4 text-xs text-ink-500">
             <LegendDot color="var(--line-green)" label="予約数" />
-            <LegendDot color="#5b3e9a" label="来店数 (status=completed)" />
+            <LegendDot color="#5b3e9a" label="来店数 (= 完了済予約)" />
             <LegendDot color="#f58fb8" label="新規顧客" />
           </div>
         </Card>
@@ -199,12 +218,62 @@ export default function AnalyticsPage() {
               })}
             </ul>
           ) : (
-            <p className="text-xs text-ink-400">
-              データがありません (Day 14 で reservations 集計の SQL に課題、Day 15 で改善予定)
-            </p>
+            <p className="text-xs text-ink-400">期間内の予約がありません</p>
           )}
         </Card>
       </section>
+
+      {funnel && (
+        <section className="mt-4">
+          <Card title="一斉配信ファネル (= 届いた → 開封した → クリックした の流れ)">
+            <BroadcastFunnelView funnel={funnel} />
+          </Card>
+        </section>
+      )}
+
+      <section className="mt-4">
+        <Card title="流入元 (= 期間内に新規登録した顧客の流入元別 内訳)">
+          {kpis && kpis.bySource.length > 0 ? (
+            <ul className="space-y-2.5">
+              {kpis.bySource.map((src) => {
+                const max = Math.max(...kpis.bySource.map((s) => s.count), 1);
+                const total = kpis.bySource.reduce((acc, s) => acc + s.count, 0);
+                const pct = total > 0 ? Math.round((src.count / total) * 1000) / 10 : 0;
+                return (
+                  <li key={src.source}>
+                    <div className="mb-1 flex items-center justify-between text-xs">
+                      <span className="text-ink-700">{src.label}</span>
+                      <span className="text-ink-500">
+                        <span className="numeric text-ink-900">{src.count}</span>
+                        <span className="ml-1 text-[10px]">名 ({pct}%)</span>
+                      </span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-surface-100">
+                      <div
+                        className="h-full"
+                        style={{
+                          width: `${(src.count / max) * 100}%`,
+                          background: '#f58fb8',
+                        }}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-xs text-ink-400">期間内に新規登録した顧客がいません</p>
+          )}
+        </Card>
+      </section>
+
+      {cohort && (
+        <section className="mt-4">
+          <Card title="コホート分析 (= デビュー月別 × その後 0-5 ヶ月の再来店率)">
+            <CohortTable cohort={cohort} />
+          </Card>
+        </section>
+      )}
 
       <Phase2Note />
     </div>
@@ -223,6 +292,7 @@ function KpiCard({
   value,
   unit,
   delta,
+  deltaInverse,
   spark,
 }: {
   Icon: LucideIcon;
@@ -230,8 +300,20 @@ function KpiCard({
   value: string;
   unit?: string;
   delta?: string;
+  deltaInverse?: boolean;
   spark: number[];
 }) {
+  // deltaInverse=true (= ブロック等、増えると赤くしたい指標)。値が + で赤、- で緑。
+  const deltaIsPositive = delta?.startsWith('+');
+  const deltaIsNegative = delta?.startsWith('-');
+  let deltaColor = 'var(--ink-500)';
+  if (delta && delta !== '前期間なし') {
+    if (deltaInverse) {
+      deltaColor = deltaIsPositive ? '#e11d48' : deltaIsNegative ? 'var(--line-green)' : 'var(--ink-500)';
+    } else {
+      deltaColor = deltaIsPositive ? 'var(--line-green)' : deltaIsNegative ? '#e11d48' : 'var(--ink-500)';
+    }
+  }
   return (
     <div className="rounded-2xl border border-ink-100 bg-surface-0 p-4">
       <div className="flex items-center justify-between">
@@ -239,7 +321,7 @@ function KpiCard({
         {delta && (
           <span
             className="flex items-center gap-0.5 text-[10px]"
-            style={{ color: 'var(--line-green)' }}
+            style={{ color: deltaColor }}
           >
             <TrendingUp size={10} strokeWidth={2.25} />
             {delta}
@@ -366,16 +448,182 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
+function CohortTable({ cohort }: { cohort: CohortAnalysis }) {
+  const hasAnyData = cohort.cohorts.some((c) => c.cohortSize > 0);
+  if (!hasAnyData) {
+    return (
+      <p className="text-xs text-ink-400">
+        直近 6 ヶ月にデビューしたお客さんがいません (= 集計対象ゼロ)
+      </p>
+    );
+  }
+  // セル背景色: rate% に応じて濃淡 (緑系)
+  const cellBg = (rate: number | null): string => {
+    if (rate === null) return 'transparent';
+    if (rate === 0) return 'var(--surface-100)';
+    const alpha = Math.min(0.85, 0.1 + rate / 100 * 0.75);
+    return `rgba(86, 176, 124, ${alpha})`;
+  };
+  const cellColor = (rate: number | null): string => {
+    if (rate === null) return 'var(--ink-300)';
+    if (rate >= 50) return '#ffffff';
+    return 'var(--ink-900)';
+  };
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead className="bg-surface-50 text-[10px] text-ink-500">
+          <tr>
+            <th className="px-3 py-2 text-left font-normal">デビュー月</th>
+            <th className="px-3 py-2 text-right font-normal">人数</th>
+            {cohort.monthOffsets.map((o) => (
+              <th key={o} className="px-3 py-2 text-center font-normal">
+                {o === 0 ? 'デビュー月' : `${o} ヶ月後`}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {cohort.cohorts.map((c) => (
+            <tr key={c.cohortMonth} className="border-t border-ink-100">
+              <td className="px-3 py-2 text-ink-700">{c.cohortMonth}</td>
+              <td className="numeric px-3 py-2 text-right text-ink-700">
+                {c.cohortSize > 0 ? `${c.cohortSize} 名` : '—'}
+              </td>
+              {c.retention.map((rate, i) => (
+                <td
+                  key={i}
+                  className="px-3 py-2 text-center"
+                  style={{ background: cellBg(rate), color: cellColor(rate) }}
+                >
+                  {rate === null ? '—' : `${rate}%`}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="mt-3 text-[10px] text-ink-400">
+        セルは「そのデビュー月にデビューしたお客さんのうち、N ヶ月後にも 1 回以上来店した割合」。色が濃いほど定着率が高い。「—」は未来月 (まだ来ていない)
+      </p>
+    </div>
+  );
+}
+
+function BroadcastFunnelView({ funnel }: { funnel: BroadcastFunnel }) {
+  if (funnel.broadcastCount === 0) {
+    return <p className="text-xs text-ink-400">期間内に送信された一斉配信がありません</p>;
+  }
+  const steps = [
+    { label: '送信先', value: funnel.totalRecipients, color: 'var(--line-green)', rate: null },
+    { label: '到達', value: funnel.totalDelivered, color: '#56b07c', rate: funnel.deliveryRate },
+    { label: '開封', value: funnel.totalOpened, color: '#5b3e9a', rate: funnel.openRate },
+    { label: 'クリック', value: funnel.totalClicked, color: '#f58fb8', rate: funnel.clickRate },
+  ];
+  const max = Math.max(...steps.map((s) => s.value), 1);
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-4 gap-3">
+        {steps.map((s) => (
+          <div key={s.label} className="rounded-xl border border-ink-100 bg-surface-50 p-3">
+            <p className="text-[10px] text-ink-500">{s.label}</p>
+            <p className="mt-1 flex items-baseline gap-1">
+              <span className="numeric text-xl text-ink-900">{s.value.toLocaleString()}</span>
+              <span className="text-[10px] text-ink-500">人</span>
+            </p>
+            {s.rate !== null && (
+              <p className="mt-0.5 text-[10px]" style={{ color: s.color }}>
+                送信先比 {s.rate}%
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div>
+        <p className="mb-2 text-[10px] text-ink-500">ファネル可視化 (= 横棒の長さが各段階の人数)</p>
+        <ul className="space-y-1.5">
+          {steps.map((s) => (
+            <li key={s.label}>
+              <div className="mb-0.5 flex items-center justify-between text-[10px]">
+                <span className="text-ink-700">{s.label}</span>
+                <span className="numeric text-ink-500">{s.value.toLocaleString()}</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-surface-100">
+                <div
+                  className="h-full"
+                  style={{ width: `${(s.value / max) * 100}%`, background: s.color }}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="grid grid-cols-4 gap-3 rounded-xl bg-surface-50 p-3 text-center">
+        <RateBox label="配信数" value={`${funnel.broadcastCount}`} unit="本" />
+        <RateBox label="開封率" value={`${funnel.openRate}`} unit="%" />
+        <RateBox label="クリック率" value={`${funnel.clickRate}`} unit="%" />
+        <RateBox label="開封者クリック率" value={`${funnel.ctOr}`} unit="%" hint="開いた人のうちクリックした率" />
+      </div>
+
+      {funnel.recent.length > 0 && (
+        <div>
+          <p className="mb-2 text-[10px] text-ink-500">最近の配信 5 件</p>
+          <div className="overflow-hidden rounded-xl border border-ink-100">
+            <table className="w-full text-xs">
+              <thead className="bg-surface-50 text-[10px] text-ink-500">
+                <tr>
+                  <th className="px-3 py-2 text-left font-normal">配信</th>
+                  <th className="px-3 py-2 text-right font-normal">送信先</th>
+                  <th className="px-3 py-2 text-right font-normal">開封</th>
+                  <th className="px-3 py-2 text-right font-normal">クリック</th>
+                  <th className="px-3 py-2 text-right font-normal">削除</th>
+                </tr>
+              </thead>
+              <tbody>
+                {funnel.recent.map((r) => (
+                  <tr key={r.broadcastId} className="border-t border-ink-100">
+                    <td className="px-3 py-2 text-ink-700">
+                      <p className="truncate">{r.title}</p>
+                      <p className="text-[10px] text-ink-400">{new Date(r.sentAt).toLocaleString('ja-JP')}</p>
+                    </td>
+                    <td className="numeric px-3 py-2 text-right text-ink-700">{r.recipientCount}</td>
+                    <td className="numeric px-3 py-2 text-right text-ink-700">{r.responseCount || '—'}</td>
+                    <td className="numeric px-3 py-2 text-right text-ink-700">{r.clickCount || '—'}</td>
+                    <td className="numeric px-3 py-2 text-right text-ink-700">{r.blockCount || '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RateBox({ label, value, unit, hint }: { label: string; value: string; unit: string; hint?: string }) {
+  return (
+    <div>
+      <p className="text-[10px] text-ink-500">{label}</p>
+      <p className="mt-0.5 flex items-baseline justify-center gap-0.5">
+        <span className="numeric text-base text-ink-900">{value}</span>
+        <span className="text-[10px] text-ink-500">{unit}</span>
+      </p>
+      {hint && <p className="mt-0.5 text-[9px] text-ink-400">{hint}</p>}
+    </div>
+  );
+}
+
 function Phase2Note() {
   return (
     <div className="mt-6 rounded-2xl border border-purple-100 bg-purple-50/40 p-4 text-xs text-purple-800">
       <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-purple-600">
         <Sparkles size={11} strokeWidth={2} />
-        Day 15 で追加予定
+        Day 16 以降で追加予定
       </div>
-      コホート (= 週次定着率) / 流入元 (UTM + QR コード) / URL クリック追跡 / コンバージョン目標 5 種 / ブロック分析 / 配信ファネル詳細
-      <br />
-      平均単価は services 表に price 列追加後に実値表示。reservations 集計 SQL の課題も Day 15 で解消予定。
+      URL クリック追跡 (= 配信メッセージのリンクが何回押されたか) / コンバージョン目標 5 種 (= 友だち追加 → 予約 等の達成率) / UTM パラメータ + QR コード生成
     </div>
   );
 }

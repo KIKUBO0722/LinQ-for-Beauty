@@ -546,6 +546,16 @@ export const api = {
         `/api/v1/analytics/daily?tenantId=${TENANT_ID}&from=${from}&to=${to}${loc}`,
       );
     },
+    getBroadcastFunnel: (from: string, to: string, locationId?: string) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<BroadcastFunnel>(
+        `/api/v1/analytics/broadcast-funnel?tenantId=${TENANT_ID}&from=${from}&to=${to}${loc}`,
+      );
+    },
+    getCohort: (locationId?: string) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<CohortAnalysis>(`/api/v1/analytics/cohort?tenantId=${TENANT_ID}${loc}`);
+    },
   },
 };
 
@@ -745,7 +755,9 @@ export type AnalyticsKpis = {
   churnRate: { value: number; deltaPct: number | null };
   avgPrice: { value: number; deltaPct: number | null };
   totalReservations: { value: number; deltaPct: number | null };
+  blockCount: { value: number; deltaPct: number | null };
   byLocation: { locationId: string; locationName: string; reservationCount: number; uniqueCustomers: number }[];
+  bySource: { source: string; label: string; count: number }[];
   periodFrom: string;
   periodTo: string;
 };
@@ -755,6 +767,39 @@ export type DailyPoint = {
   reservations: number;
   visits: number;
   newCustomers: number;
+};
+
+export type CohortAnalysis = {
+  cohortMonths: string[];
+  monthOffsets: number[];
+  cohorts: {
+    cohortMonth: string;
+    cohortSize: number;
+    retention: (number | null)[];
+  }[];
+};
+
+export type BroadcastFunnel = {
+  broadcastCount: number;
+  totalRecipients: number;
+  totalDelivered: number;
+  totalOpened: number;
+  totalClicked: number;
+  deliveryRate: number;
+  openRate: number;
+  clickRate: number;
+  ctOr: number;
+  blockedDuringPeriod: number;
+  recent: {
+    broadcastId: string;
+    title: string;
+    sentAt: string;
+    recipientCount: number;
+    responseCount: number;
+    clickCount: number;
+    clickerCount: number;
+    blockCount: number;
+  }[];
 };
 
 export const AI_PURPOSE_LABELS: Record<AiPurpose, string> = {

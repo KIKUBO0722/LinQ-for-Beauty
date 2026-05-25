@@ -24,4 +24,22 @@ export class AnalyticsController {
   ) {
     return this.analytics.getDailySeries(tenantId, new Date(from), new Date(to), locationId);
   }
+
+  @Get('broadcast-funnel')
+  async broadcastFunnel(
+    @Query('tenantId') tenantId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('locationId') locationId?: string,
+  ) {
+    return this.analytics.getBroadcastFunnel(tenantId, new Date(from), new Date(to), locationId);
+  }
+
+  @Get('cohort')
+  async cohort(
+    @Query('tenantId') tenantId: string,
+    @Query('locationId') locationId?: string,
+  ) {
+    return this.analytics.getCohortAnalysis(tenantId, locationId);
+  }
 }
