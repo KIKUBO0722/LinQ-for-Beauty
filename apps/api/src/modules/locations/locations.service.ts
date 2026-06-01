@@ -1,5 +1,5 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { count, eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@linq-beauty/db';
 import { locations, type NewLocation } from '@linq-beauty/db';
@@ -50,6 +50,17 @@ export class LocationsService {
 
   async remove(id: string, tenantId: string) {
     await this.findOne(id, tenantId);
+    // 予約が紐づく店舗を物理削除すると外部キー制約で 500 になる → 事前に件数を確認し、
+    // 0 件以外は日本語で丁寧に止める (運用上は「非公開 (isActive=false)」での引退を主動線にする)
+    const [{ value }] = await this.db
+      .select({ value: count() })
+      .from(schema.reservations)
+      .where(eq(schema.reservations.locationId, id));
+    if (Number(value) > 0) {
+      throw new ConflictException(
+        `この店舗には予約が ${value} 件あるため削除できません。先に「公開を止める」で非公開にしてください。`,
+      );
+    }
     await this.db.delete(locations).where(eq(locations.id, id));
   }
 }

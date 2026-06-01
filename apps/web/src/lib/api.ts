@@ -8,7 +8,17 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(`${res.status} ${text}`);
+    // NestJS の例外は {statusCode, message} の JSON。message があれば日本語などをそのまま表示に使う
+    let msg = `${res.status} ${text}`;
+    try {
+      const j = JSON.parse(text);
+      if (j && j.message) {
+        msg = Array.isArray(j.message) ? j.message.join(', ') : String(j.message);
+      }
+    } catch {
+      // JSON でなければ status + text のまま (既存挙動)
+    }
+    throw new Error(msg);
   }
   // 204 No Content (削除系など本文の無い応答) でも壊れないようにする
   const body = await res.text();

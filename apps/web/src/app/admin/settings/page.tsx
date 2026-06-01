@@ -235,6 +235,9 @@ function StoresTab({ onError }: { onError: (m: string) => void }) {
           >
             <span className="inline-block h-3 w-3 shrink-0 rounded-full" style={{ background: loc.themeColor ?? '#cbd5e1' }} />
             <span className="truncate text-ink-900">{loc.name}</span>
+            {loc.isActive === false && (
+              <span className="ml-auto shrink-0 rounded-full bg-surface-100 px-2 py-0.5 text-[10px] text-ink-500">非公開</span>
+            )}
           </button>
         ))}
         <button
@@ -312,6 +315,7 @@ function StoreEditor({
   const [address, setAddress] = useState(location?.address ?? '');
   const [phone, setPhone] = useState(location?.phone ?? '');
   const [themeColor, setThemeColor] = useState(location?.themeColor ?? '#06c755');
+  const [isActive, setIsActive] = useState(location?.isActive ?? true);
   const [hours, setHours] = useState<Record<DayKey, DayState>>(() => initHours(location));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -337,6 +341,7 @@ function StoreEditor({
       themeColor: themeColor || null,
       businessHours,
       closedDays,
+      isActive,
     };
     try {
       if (isNew) {
@@ -357,7 +362,12 @@ function StoreEditor({
 
   const remove = async () => {
     if (isNew || !location) return;
-    if (!window.confirm(`「${location.name}」を削除しますか? この操作は元に戻せません。`)) return;
+    if (
+      !window.confirm(
+        `「${location.name}」を削除しますか?\nこの店舗専用のメニューも一緒に削除されます。この操作は元に戻せません。\n（予約がある店舗は削除できません。その場合は「非公開」にしてください）`,
+      )
+    )
+      return;
     setSaving(true);
     try {
       await api.locations.remove(location.id);
@@ -411,6 +421,25 @@ function StoreEditor({
             onChange={(e) => setThemeColor(e.target.value)}
             placeholder="#06c755"
           />
+        </div>
+      </Field>
+
+      <Field label="公開状態" hint="非公開にすると新規予約・お客様向けに表示されません">
+        <div className="flex gap-1 rounded-lg bg-surface-100 p-1">
+          {[
+            { v: true, label: '公開中' },
+            { v: false, label: '非公開' },
+          ].map((o) => (
+            <button
+              key={o.label}
+              type="button"
+              onClick={() => setIsActive(o.v)}
+              className="flex-1 rounded-md px-3 py-1.5 text-sm font-medium"
+              style={isActive === o.v ? { background: 'var(--line-green)', color: '#fff' } : { color: 'var(--ink-500)' }}
+            >
+              {o.label}
+            </button>
+          ))}
         </div>
       </Field>
 
