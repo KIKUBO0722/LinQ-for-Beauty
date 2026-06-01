@@ -557,4 +557,67 @@ export class CustomersService {
       throw error instanceof HttpException ? error : new InternalServerErrorException('操作に失敗しました');
     }
   }
+
+  /**
+   * LINE の lineUserId をキーに顧客を upsert する (LINE webhook の友だち追加/メッセージ受信から呼ぶ)。
+   * - 既存: プロフィール (表示名/アイコン/ステータス) を同期。再フォロー時は followedAt を更新。
+   *         サロンが付けた name は上書きしない。
+   * - 新規: プロフィールから登録。受信箱で名前が出るよう name の初期値に displayName を入れる (後で編集可)。
+   */
+  async upsertByLineUser(
+    tenantId: string,
+    lineAccountId: string,
+    lineUserId: string,
+    data: {
+      displayName?: string;
+      pictureUrl?: string;
+      statusMessage?: string;
+      isFollowing?: boolean;
+    },
+  ): Promise<{ id: string }> {
+    const now = new Date();
+    const [existing] = await this.db
+      .select()
+      .from(customers)
+      .where(and(eq(customers.tenantId, tenantId), eq(customers.lineUserId, lineUserId)))
+      .limit(1);
+
+    if (existing) {
+      const values: Record<string, unknown> = { updatedAt: now, profileSyncedAt: now };
+      if (data.displayName !== undefined) values.displayName = data.displayName;
+      if (data.pictureUrl !== undefined) values.pictureUrl = data.pictureUrl;
+      if (data.statusMessage !== undefined) values.statusMessage = data.statusMessage;
+      // どの公式アカウントの友だちかが未設定なら補完する
+      if (!existing.lineAccountId) values.lineAccountId = lineAccountId;
+      if (data.isFollowing === true) {
+        values.isFollowing = true;
+        if (!existing.isFollowing) values.followedAt = now; // ブロック → 再フォロー
+      }
+      const [up] = await this.db
+        .update(customers)
+        .set(values)
+        .where(eq(customers.id, existing.id))
+        .returning();
+      return { id: up.id };
+    }
+
+    const [created] = await this.db
+      .insert(customers)
+      .values({
+        tenantId,
+        lineAccountId,
+        lineUserId,
+        name: data.displayName ?? null,
+        displayName: data.displayName ?? null,
+        pictureUrl: data.pictureUrl ?? null,
+        statusMessage: data.statusMessage ?? null,
+        isFollowing: data.isFollowing ?? true,
+        followedAt: now,
+        profileSyncedAt: now,
+        chatStatus: 'unread',
+        acquisitionSource: 'line_follow',
+      })
+      .returning();
+    return { id: created.id };
+  }
 }

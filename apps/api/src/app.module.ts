@@ -26,6 +26,7 @@ import { AiModule } from './modules/ai/ai.module';
 import { StepsModule } from './modules/steps/steps.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
+import { LineWebhookModule } from './modules/line-webhook/line-webhook.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { TenantsModule } from './modules/tenants/tenants.module';
     AiModule,
     StepsModule,
     AnalyticsModule,
+    LineWebhookModule,
   ],
   controllers: [AppController],
   providers: [AppService],
