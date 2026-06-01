@@ -10,13 +10,87 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     const text = await res.text().catch(() => res.statusText);
     throw new Error(`${res.status} ${text}`);
   }
-  return res.json() as Promise<T>;
+  // 204 No Content (削除系など本文の無い応答) でも壊れないようにする
+  const body = await res.text();
+  return (body ? JSON.parse(body) : undefined) as T;
 }
+
+export type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+export type DayHours = { open: string; close: string };
+export type BusinessHours = Partial<Record<DayKey, DayHours>>;
 
 export type Location = {
   id: string;
   name: string;
   address: string | null;
+  // --- 設定画面用の拡張 (店舗一覧 API は全列返すため実際は常に存在) ---
+  tenantId?: string;
+  slug?: string;
+  phone?: string | null;
+  businessHours?: BusinessHours | null;
+  closedDays?: number[]; // 定休日 (0=日, 1=月, ..., 6=土)
+  themeColor?: string | null; // 16 進カラーコード "#06c755"
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type LocationInput = {
+  name: string;
+  slug: string;
+  address?: string | null;
+  phone?: string | null;
+  businessHours?: BusinessHours;
+  closedDays?: number[];
+  themeColor?: string | null;
+  isActive?: boolean;
+};
+
+export type Tenant = {
+  id: string;
+  name: string; // 屋号 (サロン名)
+  email: string;
+  ownerName: string | null;
+  ownerRole: string | null;
+  phone: string | null;
+  address: string | null;
+  lineId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TenantInput = {
+  name?: string;
+  email?: string;
+  ownerName?: string | null;
+  ownerRole?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  lineId?: string | null;
+};
+
+export type Service = {
+  id: string;
+  tenantId: string;
+  locationId: string | null; // null = 全店舗共通
+  name: string;
+  durationMin: number;
+  bufferMin: number;
+  price: number | null;
+  isActive: boolean;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ServiceInput = {
+  locationId?: string | null;
+  name: string;
+  durationMin: number;
+  bufferMin?: number;
+  price?: number | null;
+  displayOrder?: number;
+  isActive?: boolean;
 };
 
 export type Reservation = {
@@ -83,6 +157,44 @@ export type Message = {
 export const api = {
   locations: {
     list: () => req<Location[]>(`/api/v1/locations?tenantId=${TENANT_ID}`),
+    create: (body: LocationInput) =>
+      req<Location>(`/api/v1/locations?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: Partial<LocationInput>) =>
+      req<Location>(`/api/v1/locations/${id}?tenantId=${TENANT_ID}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string) =>
+      req<void>(`/api/v1/locations/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
+  },
+  tenants: {
+    get: (id: string) => req<Tenant>(`/api/v1/tenants/${id}`),
+    update: (id: string, body: TenantInput) =>
+      req<Tenant>(`/api/v1/tenants/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+  },
+  services: {
+    list: (locationId?: string) => {
+      const loc = locationId ? `&locationId=${locationId}` : '';
+      return req<Service[]>(`/api/v1/services?tenantId=${TENANT_ID}${loc}`);
+    },
+    create: (body: ServiceInput) =>
+      req<Service>(`/api/v1/services?tenantId=${TENANT_ID}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (id: string, body: Partial<ServiceInput>) =>
+      req<Service>(`/api/v1/services/${id}?tenantId=${TENANT_ID}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string) =>
+      req<void>(`/api/v1/services/${id}?tenantId=${TENANT_ID}`, { method: 'DELETE' }),
   },
   reservations: {
     list: (locationId: string, from: string, to: string) =>
@@ -976,6 +1088,19 @@ export type LineAccount = {
   id: string;
   tenantId: string;
   channelId: string;
+  // --- 設定画面用の拡張 ---
+  name?: string | null;
+  channelSecret?: string; // 読み取り時は末尾4桁以外マスク済み
+  channelAccessToken?: string; // 読み取り時はマスク済み
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type LineAccountInput = {
+  name?: string | null;
+  channelId: string;
+  channelSecret: string;
+  channelAccessToken: string;
 };
 
 export const richMenusApi = {
@@ -1035,6 +1160,30 @@ export const richMenusApi = {
 export const lineAccountsApi = {
   list: async () =>
     req<LineAccount[]>(`/api/v1/line-accounts?tenantId=${TENANT_ID}`),
+  create: async (body: LineAccountInput) =>
+    req<LineAccount>(`/api/v1/line-accounts?tenantId=${TENANT_ID}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  update: async (id: string, body: Partial<LineAccountInput>) =>
+    req<LineAccount>(`/api/v1/line-accounts/${id}?tenantId=${TENANT_ID}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+  remove: async (id: string) =>
+    req<{ ok: true }>(`/api/v1/line-accounts/${id}?tenantId=${TENANT_ID}`, {
+      method: 'DELETE',
+    }),
+  // 接続テスト: 渡したアクセストークンで LINE に疎通確認 (マスク済みの値では失敗する)
+  testConnection: async (channelAccessToken: string) =>
+    req<{
+      ok: boolean;
+      botInfo?: { displayName?: string; basicId?: string; pictureUrl?: string };
+      error?: string;
+    }>(`/api/v1/line-accounts/test-connection`, {
+      method: 'POST',
+      body: JSON.stringify({ channelAccessToken }),
+    }),
 };
 
 export type RichMenuPreset = {

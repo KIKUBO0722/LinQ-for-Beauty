@@ -25,6 +25,7 @@ import { SegmentsModule } from './modules/segments/segments.module';
 import { AiModule } from './modules/ai/ai.module';
 import { StepsModule } from './modules/steps/steps.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { TenantsModule } from './modules/tenants/tenants.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     }),
     ScheduleModule.forRoot(),
     DatabaseModule,
+    TenantsModule,
     LocationsModule,
     ServicesModule,
     CalendarModule,

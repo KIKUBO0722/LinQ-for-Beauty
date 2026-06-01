@@ -9,7 +9,7 @@ import {
   LayoutGrid,
   Workflow,
   BarChart3,
-  UserCircle2,
+  Settings,
   LayoutDashboard,
   MessagesSquare,
   ChevronDown,
@@ -34,7 +34,7 @@ const sideNav: { label: string; href: string; Icon: LucideIcon }[] = [
   { label: 'ステップ配信', href: '/admin/steps', Icon: Workflow },
   { label: '自動化', href: '/admin/automation', Icon: Workflow },
   { label: '分析', href: '/admin/analytics', Icon: BarChart3 },
-  { label: 'プロフィール', href: '#', Icon: UserCircle2 },
+  { label: '設定', href: '/admin/settings', Icon: Settings },
 ];
 
 const topTabs: { label: string; href: string; Icon: LucideIcon }[] = [

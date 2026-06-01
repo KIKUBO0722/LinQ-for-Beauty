@@ -1,8 +1,9 @@
 export class CreateServiceDto {
-  locationId?: string;
+  locationId?: string | null;
   name: string;
   durationMin: number;
   bufferMin?: number;
-  price?: number;
+  price?: number | null;
   displayOrder?: number;
+  isActive?: boolean;
 }

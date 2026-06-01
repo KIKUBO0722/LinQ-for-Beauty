@@ -4,6 +4,7 @@ import { tenants } from './tenants';
 export const lineAccounts = pgTable('line_accounts', {
   id: uuid('id').defaultRandom().primaryKey(),
   tenantId: uuid('tenant_id').notNull().references(() => tenants.id, { onDelete: 'cascade' }),
+  name: text('name'), // アカウント名 (= 複数 LINE 公式運用時の識別用、例「サンプル サロン 本店」)
   channelId: text('channel_id').notNull(),
   channelSecret: text('channel_secret').notNull(),
   channelAccessToken: text('channel_access_token').notNull(),
