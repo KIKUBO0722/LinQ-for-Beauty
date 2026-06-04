@@ -220,7 +220,7 @@ function KpiCard({ kpi }: { kpi: Kpi }) {
   );
 }
 
-export function IconChip({
+function IconChip({
   Icon,
   tone,
   size,
