@@ -33,6 +33,8 @@
     "@nestjs/schedule": "^6.1.3",
     "@supabase/supabase-js": "^2.106.0",
     "bullmq": "^5.76.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.15.1",
     "drizzle-orm": "^0.43.1",
     "ical-generator": "^10.2.0",
     "postgres": "^3.4.9",
