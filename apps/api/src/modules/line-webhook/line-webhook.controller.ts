@@ -2,6 +2,7 @@ import { Controller, Post, Param, Headers, Req, HttpCode } from '@nestjs/common'
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { LineWebhookService } from './line-webhook.service';
+import { Public } from '../auth/public.decorator';
 
 /**
  * LINE の webhook 受け口。
@@ -14,6 +15,7 @@ import { LineWebhookService } from './line-webhook.service';
 export class LineWebhookController {
   constructor(private readonly webhook: LineWebhookService) {}
 
+  @Public()
   @Post(':tenantId')
   @HttpCode(200)
   async receive(

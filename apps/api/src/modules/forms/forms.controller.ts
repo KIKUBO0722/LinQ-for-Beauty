@@ -9,11 +9,14 @@ import {
   Post,
   Query,
   UploadedFile,
+  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { FormsService } from './forms.service';
 import { CreateFormDto, SubmitResponseDto, UpdateFormDto } from './dto/forms.dto';
+import { Public } from '../auth/public.decorator';
 
 @Controller('api/v1/forms')
 export class FormsController {
@@ -27,6 +30,9 @@ export class FormsController {
     return this.service.findByTenant(tenantId, locationId);
   }
 
+  @Public()
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @Post('upload-image')
   @UseInterceptors(FileInterceptor('image', { limits: { fileSize: 5 * 1024 * 1024 } }))
   async uploadImage(@UploadedFile() file: { buffer: Buffer; mimetype: string; originalname: string } | undefined) {
@@ -35,11 +41,15 @@ export class FormsController {
     return { url };
   }
 
+  @Public()
   @Get('public/:slug')
   publicGet(@Param('slug') slug: string) {
     return this.service.findBySlug(slug);
   }
 
+  @Public()
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @Post('public/:slug/submit')
   submitPublic(@Param('slug') slug: string, @Body() body: SubmitResponseDto) {
     return this.service.submitResponse(slug, body);

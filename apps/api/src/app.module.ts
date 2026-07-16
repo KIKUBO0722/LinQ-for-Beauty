@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
@@ -27,6 +29,8 @@ import { StepsModule } from './modules/steps/steps.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { LineWebhookModule } from './modules/line-webhook/line-webhook.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { AuthGuard } from './modules/auth/auth.guard';
 
 @Module({
   imports: [
@@ -41,7 +45,9 @@ import { LineWebhookModule } from './modules/line-webhook/line-webhook.module';
       }),
     }),
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
     DatabaseModule,
+    AuthModule,
     TenantsModule,
     LocationsModule,
     ServicesModule,
@@ -66,6 +72,6 @@ import { LineWebhookModule } from './modules/line-webhook/line-webhook.module';
     LineWebhookModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_GUARD, useClass: AuthGuard }],
 })
 export class AppModule {}

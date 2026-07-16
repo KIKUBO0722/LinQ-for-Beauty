@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import { IcsService } from './ics.service';
+import { Public } from '../auth/public.decorator';
 
 @Controller('api/v1/ics')
 export class IcsController {
@@ -26,6 +27,7 @@ export class IcsController {
     };
   }
 
+  @Public()
   @Get(':file')
   async getFeed(@Param('file') file: string, @Res() res: Response) {
     const token = file.endsWith('.ics') ? file.slice(0, -4) : file;
