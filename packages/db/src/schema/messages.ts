@@ -7,6 +7,7 @@ import {
   timestamp,
   bigserial,
   index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants';
 import { locations } from './locations';
@@ -34,7 +35,9 @@ export const webhookEvents = pgTable(
   (table) => [
     index('webhook_events_tenant_created_idx').on(table.tenantId, table.createdAt),
     index('webhook_events_location_idx').on(table.locationId),
-    index('webhook_events_line_event_idx').on(table.lineEventId),
+    // v0.1a: LINE webhook の重複イベント排除 (INSERT ... ON CONFLICT DO NOTHING の衝突先)。
+    // unique index は NULL を distinct 扱いするため webhookEventId 未付与イベントは素通しできる
+    uniqueIndex('webhook_events_account_event_uq').on(table.lineAccountId, table.lineEventId),
   ],
 );
 

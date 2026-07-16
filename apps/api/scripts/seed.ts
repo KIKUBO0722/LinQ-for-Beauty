@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import { eq } from 'drizzle-orm';
+import * as bcrypt from 'bcryptjs';
 import * as schema from '@linq-beauty/db';
 
 // Load root .env (same approach as drizzle.config.ts)
@@ -38,6 +39,7 @@ import {
   forms,
   stepScenarios,
   stepMessages,
+  users,
 } from '@linq-beauty/db';
 
 const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? '00000000-0000-0000-0000-000000000001';
@@ -131,6 +133,24 @@ async function main() {
     .values({ id: TENANT_ID, name: 'サンプル サロン', email: 'owner@sample-salon.test' })
     .onConflictDoUpdate({ target: tenants.id, set: { name: 'サンプル サロン', updatedAt: new Date() } });
   console.log('  ✓ tenant');
+
+  // Admin user (v0.1a 認証) — SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD が両方あるときのみ投入。
+  // repo にパスワードを書かないため、未設定なら warn でスキップ (三点一致: この tenant = NEXT_PUBLIC_TENANT_ID = JWT.tenantId)
+  const adminEmail = process.env.SEED_ADMIN_EMAIL;
+  const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+  if (adminEmail && adminPassword) {
+    const passwordHash = await bcrypt.hash(adminPassword, 10);
+    await db
+      .insert(users)
+      .values({ tenantId: TENANT_ID, email: adminEmail, passwordHash })
+      .onConflictDoUpdate({
+        target: users.email,
+        set: { passwordHash, tenantId: TENANT_ID, updatedAt: new Date() },
+      });
+    console.log(`  ✓ admin user (${adminEmail})`);
+  } else {
+    console.warn('  ⚠ SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD 未設定 — 管理ユーザーの投入をスキップ (両方設定して再実行で投入)');
+  }
 
   // Locations (slug required by schema)
   // 汎用 demo: 平山さん固有 (池袋 / 相生 / 癒明) を hardcode せず、店舗 A / B のサンプル名で投入

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, boolean, integer, jsonb, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, boolean, integer, jsonb, timestamp, date, primaryKey } from 'drizzle-orm/pg-core';
 import { tenants } from './tenants';
 import { customers } from './customers';
 
@@ -22,9 +22,25 @@ export const aiConfigs = pgTable('ai_configs', {
   handoffKeywords: jsonb('handoff_keywords').$type<string[]>().default([]),
   // キーワード応答ルール (Day 10 で本格利用、Day 9 では空配列でセット)
   keywordRules: jsonb('keyword_rules').$type<KeywordRule[]>().default([]),
+  // v0.1a: テナント別 AI 日次上限 (Anthropic 課金暴走の防止。0 は使わない — 無効化は autoReplyEnabled で)
+  dailyLimit: integer('daily_limit').notNull().default(200),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+// v0.1a: AI 利用の日次カウンタ (usage_date はサーバー TZ=Asia/Tokyo 保証下で YYYY-MM-DD 生成)
+// 日付が変われば新行になるため日次リセットの cron は不要。超過後もカウントは進める (需要の記録)
+export const aiUsageDaily = pgTable(
+  'ai_usage_daily',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    usageDate: date('usage_date').notNull(),
+    count: integer('count').notNull().default(0),
+  },
+  (table) => [primaryKey({ columns: [table.tenantId, table.usageDate] })],
+);
 
 export type KeywordRule = {
   keyword: string;
@@ -71,3 +87,5 @@ export type AiConversation = typeof aiConversations.$inferSelect;
 export type NewAiConversation = typeof aiConversations.$inferInsert;
 export type AiKnowledge = typeof aiKnowledge.$inferSelect;
 export type NewAiKnowledge = typeof aiKnowledge.$inferInsert;
+export type AiUsageDaily = typeof aiUsageDaily.$inferSelect;
+export type NewAiUsageDaily = typeof aiUsageDaily.$inferInsert;
