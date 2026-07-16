@@ -31,11 +31,17 @@ const PERIOD_LABELS: Record<PeriodKey, string> = {
   '90d': '直近 90 日',
 };
 
+// v0.1a TZ 修正: toISOString() は常に UTC 日付を返すため、JST 0-8:59 に開くと from/to が 1 日ズレる。
+// 閲覧者のローカル日付成分で 'YYYY-MM-DD' を生成する (API 側は date-only を JST 深夜として解釈)。
+function localYmd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function periodToRange(p: PeriodKey): { from: string; to: string } {
   const days = p === '7d' ? 7 : p === '30d' ? 30 : 90;
   const to = new Date();
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
-  return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
+  return { from: localYmd(from), to: localYmd(to) };
 }
 
 export default function AnalyticsPage() {

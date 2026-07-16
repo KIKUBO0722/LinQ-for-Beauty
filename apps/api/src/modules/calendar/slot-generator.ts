@@ -12,6 +12,7 @@ interface Block {
 
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
+// サーバー TZ=Asia/Tokyo 前提 (main.ts が起動時に実測検証) — setHours は JST の時刻として解釈される
 function parseTime(date: Date, hhmm: string): Date {
   const [h, m] = hhmm.split(':').map(Number);
   const result = new Date(date);
@@ -29,7 +30,7 @@ export function generateAvailableSlots(
   businessHours: BusinessHours | null | undefined,
   existingBlocks: Block[],
 ): TimeSlot[] {
-  const dayKey = DAY_KEYS[date.getDay()];
+  const dayKey = DAY_KEYS[date.getDay()]; // getDay も JST 前提 (同上)
   const dayHours = businessHours?.[dayKey];
   if (!dayHours) return [];
 

@@ -16,6 +16,7 @@ export class CalendarService {
   // ── Slots ─────────────────────────────────────────────────────────────
 
   async getSlots(tenantId: string, locationId: string, serviceId: string, dateStr: string) {
+    // サーバー TZ=Asia/Tokyo 前提 (main.ts が起動時に実測検証) — 下の setHours(0,0,0,0)/(23,59,...) は JST の日境界になる
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) throw new NotFoundException('Invalid date');
 

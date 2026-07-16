@@ -54,6 +54,13 @@ export class UpdateAiConfigDto {
   @IsOptional()
   @IsArray()
   keywordRules?: Array<{ keyword: string; response: string; matchType?: 'contains' | 'exact' | 'startsWith' }>;
+
+  // v0.1a: AI 日次上限。0 は使わない (無効化は autoReplyEnabled で)。
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10000)
+  dailyLimit?: number;
 }
 
 export class CreateKnowledgeDto {

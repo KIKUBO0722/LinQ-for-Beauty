@@ -294,31 +294,36 @@ export class AnalyticsService {
     const custLocFilter = locationId ? sql`AND preferred_location_id = ${locationId}` : sql``;
 
     try {
+      // v0.1a TZ 修正: timestamptz への ::date は DB サーバー側 TZ (Supabase=UTC) で評価されるため、
+      // AT TIME ZONE 'Asia/Tokyo' で JST の日付に明示変換する (Node の TZ 設定だけでは直らない唯一の箇所)
       const rows = (await this.db.execute(sql`
         WITH dates AS (
-          SELECT generate_series(${fromIso}::date, ${toIso}::date - INTERVAL '1 day', '1 day')::date AS d
+          SELECT generate_series(
+            (${fromIso}::timestamptz AT TIME ZONE 'Asia/Tokyo')::date,
+            (${toIso}::timestamptz AT TIME ZONE 'Asia/Tokyo')::date - INTERVAL '1 day',
+            '1 day')::date AS d
         ),
         r_agg AS (
           SELECT
-            r.starts_at::date AS d,
+            (r.starts_at AT TIME ZONE 'Asia/Tokyo')::date AS d,
             COUNT(*)::int AS reservations,
             COUNT(*) FILTER (WHERE r.status = 'completed')::int AS visits
           FROM reservations r
           WHERE ${resvTenantFilter}
             AND r.starts_at >= ${fromIso}
             AND r.starts_at < ${toIso}
-          GROUP BY r.starts_at::date
+          GROUP BY (r.starts_at AT TIME ZONE 'Asia/Tokyo')::date
         ),
         c_agg AS (
           SELECT
-            created_at::date AS d,
+            (created_at AT TIME ZONE 'Asia/Tokyo')::date AS d,
             COUNT(*)::int AS new_customers
           FROM customers
           WHERE tenant_id = ${tenantId}
             AND created_at >= ${fromIso}
             AND created_at < ${toIso}
             ${custLocFilter}
-          GROUP BY created_at::date
+          GROUP BY (created_at AT TIME ZONE 'Asia/Tokyo')::date
         )
         SELECT
           dates.d::text AS d,
@@ -348,6 +353,7 @@ export class AnalyticsService {
       : sql`r.location_id IN (SELECT id FROM locations WHERE tenant_id = ${tenantId})`;
 
     // 直近 6 ヶ月のコホート月 (古い → 新しい)
+    // サーバー TZ=Asia/Tokyo 前提 (main.ts が起動時に実測検証) — JS のローカル月計算は JST の月になる
     const now = new Date();
     const cohortMonths: string[] = [];
     for (let i = 5; i >= 0; i--) {
@@ -363,7 +369,7 @@ export class AnalyticsService {
         WITH first_visits AS (
           SELECT
             r.customer_id,
-            DATE_TRUNC('month', MIN(r.starts_at))::date AS cohort_month
+            DATE_TRUNC('month', MIN(r.starts_at) AT TIME ZONE 'Asia/Tokyo')::date AS cohort_month
           FROM reservations r
           WHERE ${resvTenantFilter}
             AND r.customer_id IS NOT NULL
@@ -372,7 +378,7 @@ export class AnalyticsService {
         all_visit_months AS (
           SELECT DISTINCT
             r.customer_id,
-            DATE_TRUNC('month', r.starts_at)::date AS visit_month
+            DATE_TRUNC('month', r.starts_at AT TIME ZONE 'Asia/Tokyo')::date AS visit_month
           FROM reservations r
           WHERE ${resvTenantFilter}
             AND r.customer_id IS NOT NULL
@@ -384,7 +390,7 @@ export class AnalyticsService {
           COUNT(DISTINCT fv.customer_id)::int AS active_customers
         FROM first_visits fv
         INNER JOIN all_visit_months av ON av.customer_id = fv.customer_id AND av.visit_month >= fv.cohort_month
-        WHERE fv.cohort_month >= ${earliestCohortIso}::date
+        WHERE fv.cohort_month >= (${earliestCohortIso}::timestamptz AT TIME ZONE 'Asia/Tokyo')::date
         GROUP BY fv.cohort_month, av.visit_month
         ORDER BY fv.cohort_month, month_offset
       `)) as unknown as Row[];
@@ -406,6 +412,7 @@ export class AnalyticsService {
       }
     }
 
+    // サーバー TZ=Asia/Tokyo 前提 (main.ts が起動時に実測検証) — 「今月」は JST の今月
     const nowYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const cohorts: CohortAnalysis['cohorts'] = cohortMonths.map((cm) => {
       const inner = map.get(cm) ?? new Map();

@@ -58,6 +58,7 @@ export class AiConfigsService {
     if (data.autoReplyEnabled !== undefined) updateData.autoReplyEnabled = data.autoReplyEnabled;
     if (data.handoffKeywords !== undefined) updateData.handoffKeywords = data.handoffKeywords;
     if (data.keywordRules !== undefined) updateData.keywordRules = data.keywordRules;
+    if (data.dailyLimit !== undefined) updateData.dailyLimit = data.dailyLimit;
 
     const [updated] = await this.db
       .update(aiConfigs)

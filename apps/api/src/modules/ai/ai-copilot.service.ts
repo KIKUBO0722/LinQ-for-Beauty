@@ -5,6 +5,7 @@ import * as schema from '@linq-beauty/db';
 import { DB } from '../../database/database.module';
 import { AnthropicService } from './anthropic.service';
 import { AiConfigsService } from './ai-configs.service';
+import { AiUsageService } from './ai-usage.service';
 
 type Db = NodePgDatabase<typeof schema>;
 
@@ -29,6 +30,7 @@ export class AiCopilotService {
     @Inject(DB) private readonly db: Db,
     private readonly anthropic: AnthropicService,
     private readonly configs: AiConfigsService,
+    private readonly aiUsage: AiUsageService,
   ) {}
 
   async suggest(tenantId: string, context: CopilotContext): Promise<{ suggestions: CopilotSuggestion[] }> {
@@ -64,6 +66,7 @@ ${config.systemPrompt?.slice(0, 200) ?? '(未設定)'}
 
 この画面で「今やるべき次の一手」を 3 案、上記の JSON 配列で出力してください。前置き不要。`;
 
+    await this.aiUsage.guardOrThrow(tenantId); // v0.1a: AI 日次上限 (超過は 429)
     const text = await this.anthropic.generateText(systemPrompt, userPrompt, {
       model: config.model,
       maxTokens: 800,

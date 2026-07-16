@@ -7,6 +7,7 @@ import { DB } from '../../database/database.module';
 import { AnthropicService } from './anthropic.service';
 import { AiConfigsService } from './ai-configs.service';
 import { AiConversationsService } from './ai-conversations.service';
+import { AiUsageService } from './ai-usage.service';
 
 type Db = NodePgDatabase<typeof schema>;
 
@@ -33,6 +34,7 @@ export class AiAutoReplyService {
     private readonly anthropic: AnthropicService,
     private readonly configs: AiConfigsService,
     private readonly conversations: AiConversationsService,
+    private readonly usage: AiUsageService,
   ) {}
 
   async replyTo(tenantId: string, customerId: string, userText: string): Promise<AutoReplyResult> {
@@ -64,6 +66,16 @@ export class AiAutoReplyService {
     if (!this.anthropic.isEnabled) {
       const fallback = `お問い合わせありがとうございます。担当スタッフから折り返しご連絡いたします。`;
       return { responseText: fallback, source: 'handoff', needsHandoff: true };
+    }
+
+    // v0.1a: AI 日次上限 — 超過時は Anthropic を呼ばず引き継ぎ文面 (客への沈黙は営業事故なので必ず何か返す)。
+    // keyword/handoff 応答 (上の (1)(2)) はカウント消費しない位置関係。
+    const quota = await this.usage.tryConsume(tenantId);
+    if (!quota.allowed) {
+      const text = `お問い合わせありがとうございます。担当スタッフから折り返しご連絡いたします。少々お待ちください。`;
+      await this.conversations.appendMessage(tenantId, customerId, { role: 'user', content: userText });
+      await this.conversations.appendMessage(tenantId, customerId, { role: 'assistant', content: text });
+      return { responseText: text, source: 'handoff', needsHandoff: true };
     }
 
     // ナレッジを system prompt に統合

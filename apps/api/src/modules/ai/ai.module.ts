@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AnthropicService } from './anthropic.service';
 import { AiConfigsService } from './ai-configs.service';
+import { AiUsageService } from './ai-usage.service';
 import { AiKnowledgeService } from './ai-knowledge.service';
 import { AiConversationsService } from './ai-conversations.service';
 import { AiAutoReplyService } from './ai-auto-reply.service';
@@ -14,6 +15,7 @@ import { AiController } from './ai.controller';
   providers: [
     AnthropicService,
     AiConfigsService,
+    AiUsageService,
     AiKnowledgeService,
     AiConversationsService,
     AiAutoReplyService,
@@ -24,6 +26,7 @@ import { AiController } from './ai.controller';
   exports: [
     AnthropicService,
     AiConfigsService,
+    AiUsageService,
     AiKnowledgeService,
     AiConversationsService,
     AiAutoReplyService,

@@ -6,6 +6,7 @@ import { customers, customerTags, tags, reservations, services, locations, messa
 import { DB } from '../../database/database.module';
 import { AnthropicService } from './anthropic.service';
 import { AiConfigsService } from './ai-configs.service';
+import { AiUsageService } from './ai-usage.service';
 
 type Db = NodePgDatabase<typeof schema>;
 
@@ -29,6 +30,7 @@ export class AiAnalysisService {
     @Inject(DB) private readonly db: Db,
     private readonly anthropic: AnthropicService,
     private readonly configs: AiConfigsService,
+    private readonly aiUsage: AiUsageService,
   ) {}
 
   async analyzeCustomer(tenantId: string, customerId: string): Promise<CustomerAnalysisResult> {
@@ -147,6 +149,7 @@ ${customFieldsText}
     const systemPrompt =
       '美容サロンの顧客分析 AI です。来店履歴と会話履歴から、その顧客の状態を JSON 形式で返してください。出力は厳密に JSON のみ、前置きや解説は不要。';
 
+    await this.aiUsage.guardOrThrow(tenantId); // v0.1a: AI 日次上限 (超過は 429)
     const text = await this.anthropic.generateText(systemPrompt, userPrompt, {
       model: config.model,
       maxTokens: 800,

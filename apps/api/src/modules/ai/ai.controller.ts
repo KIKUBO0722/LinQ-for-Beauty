@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { AiConfigsService } from './ai-configs.service';
+import { AiUsageService } from './ai-usage.service';
 import { AiKnowledgeService } from './ai-knowledge.service';
 import { AiConversationsService } from './ai-conversations.service';
 import { AiAutoReplyService } from './ai-auto-reply.service';
@@ -12,6 +13,7 @@ import { CreateKnowledgeDto, UpdateAiConfigDto, UpdateKnowledgeDto, GenerateDto,
 export class AiController {
   constructor(
     private readonly configs: AiConfigsService,
+    private readonly usage: AiUsageService,
     private readonly knowledge: AiKnowledgeService,
     private readonly conversations: AiConversationsService,
     private readonly autoReply: AiAutoReplyService,
@@ -29,6 +31,12 @@ export class AiController {
   @Patch('config')
   async updateConfig(@Query('tenantId') tenantId: string, @Body() body: UpdateAiConfigDto) {
     return this.configs.update(tenantId, body);
+  }
+
+  // v0.1a: 本日の AI 使用量 (表示用 — 消費しない)
+  @Get('usage')
+  async getUsage(@Query('tenantId') tenantId: string) {
+    return this.usage.getToday(tenantId);
   }
 
   // ====== ナレッジ ======

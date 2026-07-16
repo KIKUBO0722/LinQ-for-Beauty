@@ -6,6 +6,7 @@ import { segments, segmentBroadcasts, customers, customerTags, tags, lineAccount
 import { DB } from '../../database/database.module';
 import { LineService } from '../line/line.service';
 import { AnthropicService } from '../ai/anthropic.service';
+import { AiUsageService } from '../ai/ai-usage.service';
 
 type Db = NodePgDatabase<typeof schema>;
 type SegmentRow = typeof segments.$inferSelect;
@@ -21,6 +22,7 @@ export class SegmentsService {
     @Inject(DB) private readonly db: Db,
     private readonly lineService: LineService,
     private readonly anthropic: AnthropicService,
+    private readonly aiUsage: AiUsageService,
   ) {}
 
   async list(tenantId: string): Promise<SegmentRow[]> {
@@ -406,6 +408,7 @@ LINE 公式アカウントの一斉配信文を、業界の接客トーン (丁�
 
 このセグメントに刺さる配信文を 3 案、上記フォーマットで提示してください。`;
 
+    await this.aiUsage.guardOrThrow(tenantId); // v0.1a: AI 日次上限 (超過は 429)
     const text = await this.anthropic.generateText(systemPrompt, userPrompt, { maxTokens: 1500, temperature: 0.8 });
 
     // 「### 案 N」で分割

@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { AnthropicService } from './anthropic.service';
 import { AiConfigsService } from './ai-configs.service';
+import { AiUsageService } from './ai-usage.service';
 
 export type GenerationPurpose = 'broadcast' | 'coupon' | 'seasonal' | 'counseling';
 export type GenerationTone = 'formal' | 'friendly' | 'short';
@@ -45,6 +46,7 @@ export class AiGenerationService {
   constructor(
     private readonly anthropic: AnthropicService,
     private readonly configs: AiConfigsService,
+    private readonly aiUsage: AiUsageService,
   ) {}
 
   async generate(
@@ -76,6 +78,7 @@ ${opts.extraContext ? `追加要望: ${opts.extraContext}` : ''}
 
 このサロンに合う ${PURPOSE_LABELS[opts.purpose]} を 3 案、上記フォーマットで提示してください。`;
 
+    await this.aiUsage.guardOrThrow(tenantId); // v0.1a: AI 日次上限 (超過は 429)
     const text = await this.anthropic.generateText(systemPrompt, userPrompt, {
       model: config.model,
       maxTokens: 1500,
