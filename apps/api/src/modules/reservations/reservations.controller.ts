@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
+import { CurrentUser, type AuthUser } from '../auth/current-user.decorator';
 
 @Controller('api/v1/reservations')
 export class ReservationsController {
@@ -18,8 +19,8 @@ export class ReservationsController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.service.findOne(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.service.findOne(id, user.tenantId);
   }
 
   @Post()
@@ -28,12 +29,12 @@ export class ReservationsController {
   }
 
   @Put(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateReservationDto) {
-    return this.service.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: UpdateReservationDto, @CurrentUser() user: AuthUser) {
+    return this.service.update(id, user.tenantId, dto);
   }
 
   @Delete(':id')
-  cancel(@Param('id') id: string) {
-    return this.service.cancel(id);
+  cancel(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.service.cancel(id, user.tenantId);
   }
 }
