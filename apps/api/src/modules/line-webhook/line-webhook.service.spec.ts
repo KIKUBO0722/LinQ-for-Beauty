@@ -9,9 +9,11 @@ import { LineWebhookService } from './line-webhook.service';
  *  - LINE アカウント未登録なら署名検証もせず正常終了 (再送を誘発しない)
  *  - 友だち追加 → プロフィール取得して顧客を upsert (友だち中)
  *  - ブロック → 友だち解除の印 (顧客 upsert はしない)
- *  - 文字メッセージ → 顧客 upsert + 受信箱記録&自動応答へ受け渡し
+ *  - 文字メッセージ → 顧客 upsert + 受信箱記録&自動応答へ受け渡し (replyToken も渡す)
  *  - スタンプ等の非テキストは自動応答しない
  *  - 1 イベントが転んでも例外を投げず残りを処理する (LINE の再送ループ防止)
+ *  - v0.1a: 同一 webhookEventId の再配送は一意索引の INSERT が弾いた時点で skip (二重返信の根絶)
+ *  - v0.1a: LINE が再配送と明示したイベント (isRedelivery) は replyToken を使わない (失効の可能性大)
  *
  * 保管庫(DB)・LINE送信・受信箱・顧客サービスは偽物に差し替え、振り分けロジックだけを検証する。
  */
@@ -33,7 +35,14 @@ function createMockDb(account: typeof ACCOUNT | null) {
   const set = jest.fn(() => ({ where: updateWhere }));
   const update = jest.fn(() => ({ set }));
 
-  return { select, update, _set: set };
+  // v0.1a dedup: insert().values().onConflictDoNothing().returning() — 既定は「挿入成功」[{id:1}]。
+  // 再配送 (一意索引で弾かれた) を再現するときは _insertReturning.mockResolvedValueOnce([]) で上書きする。
+  const insertReturning = jest.fn().mockResolvedValue([{ id: 1 }]);
+  const onConflictDoNothing = jest.fn(() => ({ returning: insertReturning }));
+  const values = jest.fn(() => ({ onConflictDoNothing }));
+  const insert = jest.fn(() => ({ values }));
+
+  return { select, update, insert, _set: set, _insertReturning: insertReturning };
 }
 
 function rawBodyOf(events: unknown[]): Buffer {
@@ -112,18 +121,22 @@ describe('LineWebhookService', () => {
   it('ブロック → 友だち解除の印を付ける (顧客 upsert はしない)', async () => {
     const events = [{ type: 'unfollow', source: { type: 'user', userId: 'U1' } }];
     await service.handleCallback('ten-1', rawBodyOf(events), 'sig');
-    expect(db.update).toHaveBeenCalledTimes(1);
+    // update 2 回 = customers の解除印 + webhook_events の processed=true (v0.1a)
+    expect(db.update).toHaveBeenCalledTimes(2);
     expect(db._set).toHaveBeenCalledWith(expect.objectContaining({ isFollowing: false }));
+    expect(db._set).toHaveBeenCalledWith(expect.objectContaining({ processed: true }));
     expect(customersService.upsertByLineUser).not.toHaveBeenCalled();
   });
 
-  it('文字メッセージ → 顧客 upsert + 受信箱記録&自動応答へ受け渡し', async () => {
+  it('文字メッセージ → 顧客 upsert + 受信箱記録&自動応答へ受け渡し (replyToken も渡す)', async () => {
     const events = [
-      { type: 'message', source: { type: 'user', userId: 'U1' }, message: { type: 'text', text: 'こんにちは' } },
+      { type: 'message', source: { type: 'user', userId: 'U1' }, message: { type: 'text', text: 'こんにちは' }, replyToken: 'rt-0' },
     ];
     await service.handleCallback('ten-1', rawBodyOf(events), 'sig');
     expect(customersService.upsertByLineUser).toHaveBeenCalled();
-    expect(messagesService.handleInboundMessage).toHaveBeenCalledWith('ten-1', 'cust-1', 'こんにちは');
+    expect(messagesService.handleInboundMessage).toHaveBeenCalledWith('ten-1', 'cust-1', 'こんにちは', {
+      replyToken: 'rt-0',
+    });
   });
 
   it('スタンプ等の非テキストは自動応答しない', async () => {
@@ -143,6 +156,41 @@ describe('LineWebhookService', () => {
       { type: 'message', source: { type: 'user', userId: 'U2' }, message: { type: 'text', text: 'hi' } },
     ];
     await expect(service.handleCallback('ten-1', rawBodyOf(events), 'sig')).resolves.toBeUndefined();
-    expect(messagesService.handleInboundMessage).toHaveBeenCalledWith('ten-1', 'cust-2', 'hi');
+    expect(messagesService.handleInboundMessage).toHaveBeenCalledWith('ten-1', 'cust-2', 'hi', {
+      replyToken: undefined,
+    });
+  });
+
+  it('同一 webhookEventId の再配送 (一意索引が INSERT を弾いた) → 何も処理せず skip', async () => {
+    db._insertReturning.mockResolvedValueOnce([]); // 弾かれた = returning 空
+    const events = [
+      {
+        type: 'message',
+        webhookEventId: 'evt-1',
+        source: { type: 'user', userId: 'U1' },
+        message: { type: 'text', text: 'こんにちは' },
+        replyToken: 'rt-1',
+      },
+    ];
+    await service.handleCallback('ten-1', rawBodyOf(events), 'sig');
+    expect(messagesService.handleInboundMessage).not.toHaveBeenCalled();
+    expect(customersService.upsertByLineUser).not.toHaveBeenCalled();
+  });
+
+  it('LINE が再配送と明示したイベント (isRedelivery) は replyToken を使わない (push 経路へ)', async () => {
+    const events = [
+      {
+        type: 'message',
+        webhookEventId: 'evt-2',
+        deliveryContext: { isRedelivery: true },
+        source: { type: 'user', userId: 'U1' },
+        message: { type: 'text', text: 'また来た' },
+        replyToken: 'rt-2',
+      },
+    ];
+    await service.handleCallback('ten-1', rawBodyOf(events), 'sig');
+    expect(messagesService.handleInboundMessage).toHaveBeenCalledWith('ten-1', 'cust-1', 'また来た', {
+      replyToken: undefined,
+    });
   });
 });

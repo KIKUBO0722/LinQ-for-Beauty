@@ -211,6 +211,7 @@ export class MessagesService {
     tenantId: string,
     customerId: string,
     payload: MessagePayload,
+    opts?: { replyToken?: string },
   ) {
     const [customer] = await this.db
       .select()
@@ -231,14 +232,35 @@ export class MessagesService {
 
     // LINE 送信は失敗しても DB insert は続行する (broadcasts と挙動を揃える)
     // — dummy account / 未接続 / レート制限などは status='failed' で記録、画面には追加される
+    // v0.1a: replyToken があれば返信 (無料経路) を優先し、失敗時 (失効/二重使用) は push に切替えて必ず届ける
+    let sendType: 'reply' | 'push' = 'push';
     let sendStatus: 'sent' | 'failed' = 'sent';
     try {
-      await this.lineService.pushMessage(credentials, customer.lineUserId, [lineMessage]);
+      if (opts?.replyToken) {
+        await this.lineService.replyMessage(credentials, opts.replyToken, [lineMessage]);
+        sendType = 'reply';
+      } else {
+        await this.lineService.pushMessage(credentials, customer.lineUserId, [lineMessage]);
+      }
     } catch (e) {
-      sendStatus = 'failed';
-      this.logger.warn(
-        `LINE push failed for customer=${customerId}: ${e instanceof Error ? e.message : String(e)}`,
-      );
+      if (opts?.replyToken) {
+        this.logger.warn(
+          `replyMessage failed, falling back to push: ${e instanceof Error ? e.message : String(e)}`,
+        );
+        try {
+          await this.lineService.pushMessage(credentials, customer.lineUserId, [lineMessage]);
+        } catch (e2) {
+          sendStatus = 'failed';
+          this.logger.warn(
+            `LINE push failed for customer=${customerId}: ${e2 instanceof Error ? e2.message : String(e2)}`,
+          );
+        }
+      } else {
+        sendStatus = 'failed';
+        this.logger.warn(
+          `LINE push failed for customer=${customerId}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
     }
 
     const [msg] = await this.db
@@ -251,7 +273,7 @@ export class MessagesService {
         direction: 'outbound',
         messageType: payload.type,
         content: lineMessage as unknown as Record<string, unknown>,
-        sendType: 'push',
+        sendType, // 実際に使った経路 'reply' / 'push' を記録
         status: sendStatus,
         sentAt: new Date(),
       })
@@ -269,6 +291,7 @@ export class MessagesService {
     tenantId: string,
     customerId: string,
     userText: string,
+    opts?: { replyToken?: string },
   ): Promise<{
     inboundId: string;
     reply: { responseText: string; source: 'handoff' | 'keyword' | 'ai' | 'disabled'; needsHandoff: boolean };
@@ -313,10 +336,12 @@ export class MessagesService {
     let outboundId: string | null = null;
     if (reply.responseText && reply.source !== 'disabled') {
       try {
-        const outbound = await this.sendMessageToCustomer(tenantId, customerId, {
-          type: 'text',
-          text: reply.responseText,
-        });
+        const outbound = await this.sendMessageToCustomer(
+          tenantId,
+          customerId,
+          { type: 'text', text: reply.responseText },
+          opts, // webhook 由来の replyToken (あれば無料の返信経路を使う)
+        );
         outboundId = outbound.id;
       } catch (e) {
         this.logger.warn(
