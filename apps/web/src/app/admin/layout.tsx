@@ -20,6 +20,8 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { Logo } from '../_components/Logo';
 import { AiCopilotFab } from './_components/AiCopilotFab';
+import { AuthGate } from './_components/AuthGate';
+import { UserMenu } from './_components/UserMenu';
 
 const sideNav: { label: string; href: string; Icon: LucideIcon }[] = [
   { label: 'ホーム', href: '/admin/dashboard', Icon: Home },
@@ -138,15 +140,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <CalendarCheck2 size={14} strokeWidth={1.75} className="text-ink-500" />
               <span className="numeric tracking-tight">2026年5月22日 (木)</span>
             </span>
-            <div className="flex items-center gap-2">
-              <span
-                className="inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold"
-                style={{ background: 'var(--gradient-soft)', color: 'var(--ink-900)' }}
-              >
-                山
-              </span>
-              <span className="text-ink-900">山田 花子</span>
-            </div>
+            <UserMenu />
             <button
               type="button"
               className="rounded-full border border-ink-100 px-3 py-1 text-xs text-ink-500"
@@ -156,7 +150,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto">{children}</main>
+        <main className="flex-1 overflow-y-auto">
+          <AuthGate>{children}</AuthGate>
+        </main>
       </div>
 
       <AiCopilotFab />

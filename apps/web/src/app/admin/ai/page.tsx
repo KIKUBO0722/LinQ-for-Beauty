@@ -22,13 +22,19 @@ export default function AiPage() {
   const [tab, setTab] = useState<Tab>('config');
   const [config, setConfig] = useState<AiConfig | null>(null);
   const [knowledge, setKnowledge] = useState<AiKnowledge[]>([]);
+  const [usage, setUsage] = useState<{ count: number; dailyLimit: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
-      const [cfg, ks] = await Promise.all([api.ai.getConfig(), api.ai.listKnowledge()]);
+      const [cfg, ks, usg] = await Promise.all([
+        api.ai.getConfig(),
+        api.ai.listKnowledge(),
+        api.ai.usage(),
+      ]);
       setConfig(cfg);
       setKnowledge(ks);
+      setUsage(usg);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -69,7 +75,7 @@ export default function AiPage() {
       </div>
 
       {tab === 'config' && config && (
-        <ConfigTab config={config} onSaved={refresh} setError={setError} />
+        <ConfigTab config={config} usage={usage} onSaved={refresh} setError={setError} />
       )}
       {tab === 'knowledge' && (
         <KnowledgeTab knowledge={knowledge} onChanged={refresh} setError={setError} />
@@ -118,10 +124,12 @@ function TabButton({
 
 function ConfigTab({
   config,
+  usage,
   onSaved,
   setError,
 }: {
   config: AiConfig;
+  usage: { count: number; dailyLimit: number } | null;
   onSaved: () => void;
   setError: (e: string | null) => void;
 }) {
@@ -130,6 +138,7 @@ function ConfigTab({
   const [handoffInput, setHandoffInput] = useState('');
   const [handoffKeywords, setHandoffKeywords] = useState<string[]>(config.handoffKeywords ?? []);
   const [temperature, setTemperature] = useState(config.temperature);
+  const [dailyLimit, setDailyLimit] = useState(config.dailyLimit);
   const [busy, setBusy] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
 
@@ -150,6 +159,7 @@ function ConfigTab({
         systemPrompt,
         handoffKeywords,
         temperature,
+        dailyLimit,
       });
       setSavedAt(new Date().toLocaleTimeString('ja-JP'));
       onSaved();
@@ -264,6 +274,31 @@ function ConfigTab({
           onChange={(e) => setTemperature(Number(e.target.value))}
           className="w-full"
         />
+      </div>
+
+      {/* 1 日の AI 応答上限 */}
+      <div className="space-y-1">
+        <label className="text-sm font-medium text-slate-700">1 日の AI 応答上限</label>
+        <p className="text-xs text-slate-500">
+          Anthropic の課金暴走を防ぐ上限。超えた分はその日 AI 応答を止め「スタッフから連絡します」の引き継ぎ文面に自動で切り替わります (翌日リセット)。
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <input
+            type="number"
+            min={1}
+            max={10000}
+            value={dailyLimit}
+            onChange={(e) => setDailyLimit(Number(e.target.value))}
+            className="w-32 rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-purple-400 focus:outline-none focus:ring-2 focus:ring-purple-100"
+          />
+          <span className="text-sm text-slate-500">回 / 日</span>
+          {usage && (
+            <span className="text-xs text-slate-500">
+              本日の使用量:{' '}
+              <span className="font-medium text-slate-700">{usage.count}</span> / {usage.dailyLimit} 回
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center justify-between border-t border-slate-100 pt-4">

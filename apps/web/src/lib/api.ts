@@ -1,11 +1,27 @@
+import { getToken, clearSession, type AuthUser } from './auth';
+
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333';
 export const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? '';
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(init?.headers as Record<string, string> | undefined),
+  };
+  if (token) headers.Authorization = `Bearer ${token}`;
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...init,
+    headers,
   });
+  if (res.status === 401) {
+    // セッション失効: トークンを破棄し、管理画面配下なら /login へ強制遷移。
+    // 公開フォーム (/forms/[slug]) は未ログインで使うため巻き込まない。
+    clearSession();
+    if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+      window.location.href = '/login';
+    }
+  }
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
     // NestJS の例外は {statusCode, message} の JSON。message があれば日本語などをそのまま表示に使う
@@ -24,6 +40,21 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const body = await res.text();
   return (body ? JSON.parse(body) : undefined) as T;
 }
+
+// 認証 API。login は @Public、me は要トークン (req() が Authorization を自動付与)。
+export const authApi = {
+  login: (email: string, password: string) =>
+    req<{
+      accessToken: string;
+      tokenType: 'Bearer';
+      expiresInSec: number;
+      user: AuthUser;
+    }>(`/api/v1/auth/login`, {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+  me: () => req<AuthUser>(`/api/v1/auth/me`),
+};
 
 export type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 export type DayHours = { open: string; close: string };
@@ -562,6 +593,11 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify(body),
       }),
+    // 本日の AI 使用量 (表示用 — 消費しない)
+    usage: () =>
+      req<{ date: string; count: number; dailyLimit: number }>(
+        `/api/v1/ai/usage?tenantId=${TENANT_ID}`,
+      ),
     listKnowledge: (category?: string) => {
       const cat = category ? `&category=${category}` : '';
       return req<AiKnowledge[]>(`/api/v1/ai/knowledge?tenantId=${TENANT_ID}${cat}`);
@@ -748,6 +784,7 @@ export type AiConfig = {
   model: string;
   temperature: number; // 0-10
   maxTokens: number;
+  dailyLimit: number; // 1 日の AI 応答上限 (Anthropic 課金暴走の防止)
   welcomeMessage: string | null;
   autoReplyEnabled: boolean;
   handoffKeywords: string[];
@@ -1155,9 +1192,15 @@ export const richMenusApi = {
   uploadImage: async (id: string, file: File) => {
     const form = new FormData();
     form.append('image', file);
+    // 認証必須 route。FormData なので Content-Type は付けず (boundary が自動付与される) Authorization のみ。
+    const token = getToken();
     const res = await fetch(
       `${BASE}/api/v1/rich-menus/${id}/image?tenantId=${TENANT_ID}`,
-      { method: 'POST', body: form },
+      {
+        method: 'POST',
+        body: form,
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      },
     );
     if (!res.ok) {
       const text = await res.text().catch(() => res.statusText);
@@ -1307,9 +1350,12 @@ export const formsApi = {
   uploadImage: async (file: File): Promise<string> => {
     const form = new FormData();
     form.append('image', file);
+    // @Public route (公開フォームの画像回答が未ログインで使う)。トークンがあれば任意で付与。
+    const token = getToken();
     const res = await fetch(`${BASE}/api/v1/forms/upload-image?tenantId=${TENANT_ID}`, {
       method: 'POST',
       body: form,
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
     if (!res.ok) {
       const text = await res.text().catch(() => res.statusText);
