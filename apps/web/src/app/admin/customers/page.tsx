@@ -107,14 +107,6 @@ export default function CustomersPage() {
     );
   };
 
-  if (!TENANT_ID) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-ink-500">
-        NEXT_PUBLIC_TENANT_ID が未設定です (.env.local を確認してください)
-      </div>
-    );
-  }
-
   const tagsByCategory = useMemo(() => {
     const map = new Map<string, Tag[]>();
     for (const t of tagsAll) {
@@ -124,6 +116,14 @@ export default function CustomersPage() {
     }
     return map;
   }, [tagsAll]);
+
+  if (!TENANT_ID) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-ink-500">
+        NEXT_PUBLIC_TENANT_ID が未設定です (.env.local を確認してください)
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 px-6 py-5">
@@ -151,7 +151,7 @@ export default function CustomersPage() {
         right={
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 rounded-full border border-ink-100 bg-surface-0 px-3 py-1">
-              <Search size={11} strokeWidth={1.75} className="text-ink-400" />
+              <Search size={11} strokeWidth={1.75} className="text-ink-300" />
               <input
                 type="text"
                 value={search}
@@ -226,7 +226,7 @@ export default function CustomersPage() {
                   <td className="py-2.5 align-top">
                     <div className="flex flex-wrap gap-1">
                       {c.tags.length === 0 ? (
-                        <span className="text-[10px] text-ink-400">—</span>
+                        <span className="text-[10px] text-ink-300">—</span>
                       ) : (
                         c.tags.map((t) => <TagBadge key={t.id} tag={t} />)
                       )}
@@ -507,7 +507,7 @@ function TagManager({
                           setCreatingCategory(null);
                           setNewName('');
                         }}
-                        className="rounded-full p-1 text-ink-400 hover:bg-surface-100"
+                        className="rounded-full p-1 text-ink-300 hover:bg-surface-100"
                         aria-label="キャンセル"
                       >
                         <X size={11} strokeWidth={2} />
@@ -552,7 +552,7 @@ function ChatStatusBadge({ status }: { status: string }) {
 
 function TierBadge({ tier }: { tier: string }) {
   const label = TIER_LABEL[tier] ?? tier;
-  if (tier === 'unknown') return <span className="text-[10px] text-ink-400">{label}</span>;
+  if (tier === 'unknown') return <span className="text-[10px] text-ink-300">{label}</span>;
   const color =
     tier === 'new' ? '#06b6d4' : tier === 'active' ? '#10b981' : '#94a3b8';
   return (

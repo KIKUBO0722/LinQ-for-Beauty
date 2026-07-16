@@ -230,7 +230,7 @@ export default function CouponsPage() {
                         )}
                       </div>
                       <div className="mt-1.5 flex items-center justify-between">
-                        <span className="text-[9px] text-ink-400">
+                        <span className="text-[9px] text-ink-300">
                           {c.locationId
                             ? locations.find((l) => l.id === c.locationId)?.name ?? ''
                             : '全拠点'}
@@ -243,7 +243,7 @@ export default function CouponsPage() {
                             onToggle(c);
                           }}
                           className="cursor-pointer text-[10px] font-semibold"
-                          style={{ color: c.isActive ? '#0a8d48' : 'var(--ink-400)' }}
+                          style={{ color: c.isActive ? '#0a8d48' : 'var(--ink-300)' }}
                         >
                           {c.isActive ? 'ON' : 'OFF'}
                         </span>
@@ -490,7 +490,7 @@ function CouponPreview({ draft }: { draft: CouponDraft }) {
         </div>
       )}
       {draft.maxUses !== null && (
-        <p className="mt-1 text-[9px] text-ink-400">先着 {draft.maxUses} 名様</p>
+        <p className="mt-1 text-[9px] text-ink-300">先着 {draft.maxUses} 名様</p>
       )}
     </div>
   );

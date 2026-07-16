@@ -86,7 +86,7 @@ export default function AnalyticsPage() {
             新規 / リピート / 失客 / 平均単価 / LINE 友だち削除 / 拠点別 / 流入元 を期間別で確認。コホート (= 月別グループの定着率) / 配信ファネル詳細 は本セッションで追加予定、URL クリック追跡 / コンバージョン目標 は Day 16 以降。
           </p>
         </div>
-        {loading && <Loader2 className="h-5 w-5 animate-spin text-ink-400" />}
+        {loading && <Loader2 className="h-5 w-5 animate-spin text-ink-300" />}
       </div>
 
       {error && (
@@ -181,7 +181,7 @@ export default function AnalyticsPage() {
           {daily && daily.length > 0 ? (
             <DailyLineChart data={daily} />
           ) : (
-            <p className="text-xs text-ink-400">データがありません</p>
+            <p className="text-xs text-ink-300">データがありません</p>
           )}
           <div className="mt-3 flex items-center gap-4 text-xs text-ink-500">
             <LegendDot color="var(--line-green)" label="予約数" />
@@ -218,7 +218,7 @@ export default function AnalyticsPage() {
               })}
             </ul>
           ) : (
-            <p className="text-xs text-ink-400">期間内の予約がありません</p>
+            <p className="text-xs text-ink-300">期間内の予約がありません</p>
           )}
         </Card>
       </section>
@@ -262,7 +262,7 @@ export default function AnalyticsPage() {
               })}
             </ul>
           ) : (
-            <p className="text-xs text-ink-400">期間内に新規登録した顧客がいません</p>
+            <p className="text-xs text-ink-300">期間内に新規登録した顧客がいません</p>
           )}
         </Card>
       </section>
@@ -452,7 +452,7 @@ function CohortTable({ cohort }: { cohort: CohortAnalysis }) {
   const hasAnyData = cohort.cohorts.some((c) => c.cohortSize > 0);
   if (!hasAnyData) {
     return (
-      <p className="text-xs text-ink-400">
+      <p className="text-xs text-ink-300">
         直近 6 ヶ月にデビューしたお客さんがいません (= 集計対象ゼロ)
       </p>
     );
@@ -503,7 +503,7 @@ function CohortTable({ cohort }: { cohort: CohortAnalysis }) {
           ))}
         </tbody>
       </table>
-      <p className="mt-3 text-[10px] text-ink-400">
+      <p className="mt-3 text-[10px] text-ink-300">
         セルは「そのデビュー月にデビューしたお客さんのうち、N ヶ月後にも 1 回以上来店した割合」。色が濃いほど定着率が高い。「—」は未来月 (まだ来ていない)
       </p>
     </div>
@@ -512,7 +512,7 @@ function CohortTable({ cohort }: { cohort: CohortAnalysis }) {
 
 function BroadcastFunnelView({ funnel }: { funnel: BroadcastFunnel }) {
   if (funnel.broadcastCount === 0) {
-    return <p className="text-xs text-ink-400">期間内に送信された一斉配信がありません</p>;
+    return <p className="text-xs text-ink-300">期間内に送信された一斉配信がありません</p>;
   }
   const steps = [
     { label: '送信先', value: funnel.totalRecipients, color: 'var(--line-green)', rate: null },
@@ -586,7 +586,7 @@ function BroadcastFunnelView({ funnel }: { funnel: BroadcastFunnel }) {
                   <tr key={r.broadcastId} className="border-t border-ink-100">
                     <td className="px-3 py-2 text-ink-700">
                       <p className="truncate">{r.title}</p>
-                      <p className="text-[10px] text-ink-400">{new Date(r.sentAt).toLocaleString('ja-JP')}</p>
+                      <p className="text-[10px] text-ink-300">{new Date(r.sentAt).toLocaleString('ja-JP')}</p>
                     </td>
                     <td className="numeric px-3 py-2 text-right text-ink-700">{r.recipientCount}</td>
                     <td className="numeric px-3 py-2 text-right text-ink-700">{r.responseCount || '—'}</td>
@@ -611,7 +611,7 @@ function RateBox({ label, value, unit, hint }: { label: string; value: string; u
         <span className="numeric text-base text-ink-900">{value}</span>
         <span className="text-[10px] text-ink-500">{unit}</span>
       </p>
-      {hint && <p className="mt-0.5 text-[9px] text-ink-400">{hint}</p>}
+      {hint && <p className="mt-0.5 text-[9px] text-ink-300">{hint}</p>}
     </div>
   );
 }

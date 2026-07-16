@@ -134,7 +134,7 @@ function NewBroadcastTab({ onError }: { onError: (e: string) => void }) {
               <input
                 disabled
                 value="全友だち (v0.1)"
-                className="w-full rounded-xl border border-ink-100 bg-surface-50 px-3 py-2 text-sm text-ink-400 outline-none"
+                className="w-full rounded-xl border border-ink-100 bg-surface-50 px-3 py-2 text-sm text-ink-300 outline-none"
               />
             </Field>
           </div>

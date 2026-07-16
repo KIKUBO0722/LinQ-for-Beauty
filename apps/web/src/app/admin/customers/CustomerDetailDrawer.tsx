@@ -184,7 +184,7 @@ function DrawerHeader({ customer, onClose }: { customer: CustomerWithTags; onClo
         type="button"
         onClick={onClose}
         aria-label="閉じる"
-        className="rounded-full p-1.5 text-ink-400 hover:bg-surface-50 hover:text-ink-700"
+        className="rounded-full p-1.5 text-ink-300 hover:bg-surface-50 hover:text-ink-700"
       >
         <X size={16} strokeWidth={2} />
       </button>
@@ -323,11 +323,11 @@ function TagAssigner({
             </button>
             <div className="absolute left-0 top-full z-10 mt-1 w-64 rounded-xl border border-ink-100 bg-surface-0 p-2 shadow-lg">
               {unassigned.length === 0 ? (
-                <p className="px-2 py-3 text-center text-[11px] text-ink-400">追加できるタグなし</p>
+                <p className="px-2 py-3 text-center text-[11px] text-ink-300">追加できるタグなし</p>
               ) : (
                 [...unassignedByCategory.entries()].map(([cat, list]) => (
                   <div key={cat} className="mb-2 last:mb-0">
-                    <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-ink-400">
+                    <p className="mb-1 text-[9px] font-semibold uppercase tracking-wider text-ink-300">
                       {CATEGORY_LABEL[cat] ?? cat}
                     </p>
                     <div className="flex flex-wrap gap-1">
@@ -421,7 +421,7 @@ function NotesSection({
         className="w-full resize-none rounded-xl border border-ink-100 bg-surface-0 px-3 py-2 text-[12px] outline-none"
       />
       {savedAt && (
-        <p className="mt-1 text-[10px] text-ink-400">
+        <p className="mt-1 text-[10px] text-ink-300">
           {new Date(savedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} に保存
         </p>
       )}
@@ -634,7 +634,7 @@ function TimelineRow({ event }: { event: TimelineEvent }) {
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-medium text-ink-900">{summarize(event)}</p>
-        <p className="text-[10px] text-ink-400">{formatDate(event.timestamp)}</p>
+        <p className="text-[10px] text-ink-300">{formatDate(event.timestamp)}</p>
       </div>
     </li>
   );
@@ -762,7 +762,7 @@ function AiAnalysisSection({
       }
     >
       {!result && !loading && (
-        <p className="text-[11px] text-ink-400">
+        <p className="text-[11px] text-ink-300">
           来店履歴・タグ・会話履歴から AI が「再来店予測」「離脱リスク」「推奨アクション」「推奨メッセージ」を分析。
         </p>
       )}
@@ -776,11 +776,11 @@ function AiAnalysisSection({
         <div className="space-y-2 text-[12px]">
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-md border border-ink-100 bg-surface-50 p-2">
-              <div className="text-[10px] text-ink-400">予測再来店日</div>
+              <div className="text-[10px] text-ink-300">予測再来店日</div>
               <div className="font-medium text-ink-900">{result.predictedNextVisit ?? '不明'}</div>
             </div>
             <div className="rounded-md border border-ink-100 bg-surface-50 p-2">
-              <div className="text-[10px] text-ink-400">離脱リスク</div>
+              <div className="text-[10px] text-ink-300">離脱リスク</div>
               <div className="font-medium">
                 <span
                   className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] ${RISK_LABEL[result.churnRisk].color}`}
@@ -872,7 +872,7 @@ function StepEnrollmentSection({
   return (
     <Card title="ステップ配信に追加">
       {activeScenarios.length === 0 ? (
-        <p className="text-[11px] text-ink-400">
+        <p className="text-[11px] text-ink-300">
           有効なシナリオがありません。先にステップ配信タブで作成 + 有効化してください。
         </p>
       ) : (

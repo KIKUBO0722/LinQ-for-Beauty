@@ -145,7 +145,7 @@ export default function SegmentsPage() {
     }
   };
 
-  const useSuggestion = (text: string) => {
+  const applySuggestion = (text: string) => {
     if (!broadcastModal) return;
     setBroadcastModal({ ...broadcastModal, message: text });
   };
@@ -361,7 +361,7 @@ export default function SegmentsPage() {
                   value={edit.name}
                   onChange={(e) => setEdit({ ...edit, name: e.target.value })}
                   placeholder="例: VIP リピーター / 新規 1 ヶ月以内 / 休眠顧客"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none focus:ring-2 focus:ring-pink-100"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-pink-300 focus:outline-none focus:ring-2 focus:ring-pink-100"
                 />
               </div>
 
@@ -372,7 +372,7 @@ export default function SegmentsPage() {
                   onChange={(e) => setEdit({ ...edit, description: e.target.value })}
                   placeholder="このセグメントをどう使うか、社内向けメモ"
                   rows={2}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none focus:ring-2 focus:ring-pink-100"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-pink-300 focus:outline-none focus:ring-2 focus:ring-pink-100"
                 />
               </div>
 
@@ -383,7 +383,7 @@ export default function SegmentsPage() {
                   onChange={(e) =>
                     setEdit({ ...edit, locationId: e.target.value || null })
                   }
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none focus:ring-2 focus:ring-pink-100"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-pink-300 focus:outline-none focus:ring-2 focus:ring-pink-100"
                 >
                   <option value="">指定なし (全拠点)</option>
                   {locations.map((l) => (
@@ -443,7 +443,7 @@ export default function SegmentsPage() {
                               onClick={() => toggleInclude(t.id)}
                               className={`rounded-full border px-3 py-1 text-xs transition ${
                                 on
-                                  ? 'border-pink-400 bg-pink-100 text-pink-700'
+                                  ? 'border-pink-300 bg-pink-100 text-pink-700'
                                   : 'border-slate-200 bg-white text-slate-600 hover:border-pink-200 hover:bg-pink-50'
                               }`}
                               style={
@@ -645,7 +645,7 @@ export default function SegmentsPage() {
                     <button
                       key={i}
                       type="button"
-                      onClick={() => useSuggestion(s)}
+                      onClick={() => applySuggestion(s)}
                       className="block w-full rounded-md border border-purple-100 bg-white p-3 text-left text-xs text-slate-700 hover:border-purple-300 hover:bg-purple-50"
                     >
                       <div className="mb-1 text-[10px] font-medium text-purple-600">案 {i + 1}</div>
@@ -662,7 +662,7 @@ export default function SegmentsPage() {
                 }
                 placeholder="ここに配信本文を入力 (LINE のテキストメッセージとして送信)"
                 rows={6}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none focus:ring-2 focus:ring-pink-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-pink-300 focus:outline-none focus:ring-2 focus:ring-pink-100"
               />
               <div className="text-right text-xs text-slate-500">
                 {broadcastModal.message.length} 文字
