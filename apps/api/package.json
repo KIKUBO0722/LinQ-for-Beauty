@@ -19,6 +19,7 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "seed": "ts-node --transpile-only scripts/seed.ts",
+    "seed:platform": "ts-node --transpile-only scripts/seed-platform-admin.ts",
     "cleanup-legacy": "ts-node --transpile-only scripts/cleanup-legacy.ts"
   },
   "dependencies": {

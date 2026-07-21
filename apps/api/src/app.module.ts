@@ -29,6 +29,7 @@ import { StepsModule } from './modules/steps/steps.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { TenantsModule } from './modules/tenants/tenants.module';
 import { LineWebhookModule } from './modules/line-webhook/line-webhook.module';
+import { PlatformModule } from './modules/platform/platform.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuthGuard } from './modules/auth/auth.guard';
 
@@ -70,6 +71,7 @@ import { AuthGuard } from './modules/auth/auth.guard';
     StepsModule,
     AnalyticsModule,
     LineWebhookModule,
+    PlatformModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: AuthGuard }],

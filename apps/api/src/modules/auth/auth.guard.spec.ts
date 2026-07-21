@@ -56,6 +56,14 @@ describe('AuthGuard', () => {
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
+  it('tenantId claim の無いトークン (運営用) は query 無しでも 403 (08 逆流防止)', async () => {
+    reflector.getAllAndOverride.mockReturnValue(false);
+    jwtService.verifyAsync.mockResolvedValue({ sub: 'admin-1', role: 'platform', email: 'p@example.com' });
+    const context = makeContext({ headers: { authorization: 'Bearer platform-token' }, query: {} });
+
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('query.tenantId が JWT の tenantId と不一致なら 403', async () => {
     reflector.getAllAndOverride.mockReturnValue(false);
     jwtService.verifyAsync.mockResolvedValue({ sub: 'u1', tenantId: 'ten-1', email: 'a@example.com' });
